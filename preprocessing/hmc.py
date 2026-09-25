@@ -1,12 +1,64 @@
-"""Prepare HMC from preprocessed 100-Hz pickle epochs or the experiment cache."""
+"""Prepare HMC from official EDF recordings or preprocessed 100-Hz epochs."""
+import json
 import pickle
 import re
+from pathlib import Path
 import numpy as np
 from .clinical import DATASETS, from_cache, from_records, parser_for
 
 
+def from_raw(source, output, *, alignment):
+    from ._hmc_raw import read_recording
+
+    source = Path(source)
+    if (source / "recordings").is_dir():
+        source = source / "recordings"
+    metadata_path = Path(__file__).parent / "metadata" / "hmc_recording_splits.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    partitions = {}
+    seen = set()
+    for split in ("train", "val", "test"):
+        recordings = metadata["recordings"][split]
+        if len(recordings) != len(set(recordings)) or seen.intersection(recordings):
+            raise ValueError("HMC recording partitions must be unique and disjoint")
+        seen.update(recordings)
+        keys = []
+        for recording in recordings:
+            for filename in (recording + ".edf", recording + "_sleepscoring.txt"):
+                if not (source / filename).is_file():
+                    raise FileNotFoundError(source / filename)
+            count = metadata["epoch_counts"][split][recording]
+            keys.extend((recording, index) for index in range(count))
+        partitions[split] = sorted(keys, key=lambda key: f"{key[0]}-{key[1]}.pkl")
+
+    expected_counts = {
+        recording: count
+        for split in metadata["epoch_counts"].values()
+        for recording, count in split.items()
+    }
+    cached_recording, cached_epochs, cached_labels = None, None, None
+
+    def load(key):
+        nonlocal cached_recording, cached_epochs, cached_labels
+        recording, index = key
+        if recording != cached_recording:
+            cached_epochs, cached_labels = None, None
+            cached_epochs, cached_labels = read_recording(source / f"{recording}.edf")
+            if len(cached_labels) != expected_counts[recording]:
+                raise ValueError(f"Unexpected number of labeled epochs in {recording}")
+            cached_recording = recording
+            print(f"HMC {recording}: {len(cached_labels)} epochs", flush=True)
+        return cached_epochs[index], int(cached_labels[index]), recording
+
+    return from_records("hmc", partitions, output, load, alignment=alignment)
+
+
 def main(argv=None):
-    args = parser_for("hmc", __doc__).parse_args(argv)
+    parser = parser_for("hmc", __doc__, source_formats=("raw", "released", "experiment-cache"))
+    parser.set_defaults(source_format="raw")
+    args = parser.parse_args(argv)
+    if args.source_format == "raw":
+        return from_raw(args.source, args.output, alignment=args.alignment)
     if args.source_format == "experiment-cache":
         return from_cache("hmc", args.source, args.output, alignment=args.alignment, ea_source=args.ea_source)
     partitions = {split: sorted((args.source / directory).glob("*.pkl")) for split, directory in (("train", "train"), ("val", "eval"), ("test", "test"))}

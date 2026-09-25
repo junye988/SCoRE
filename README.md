@@ -60,8 +60,8 @@ See [the preprocessing reference](preprocessing/README.md) for source layouts, d
 |---|---|---|---|
 | BCI-IV-2a | `preprocessing.bci_iv_2a` | Official GDF recordings and MAT labels | 22 × 800, 200 Hz |
 | PhysioNet-MI | `preprocessing.physionet_mi` | Official EDF recordings or REVE-format LMDB | 64 × 800, 200 Hz |
-| ISRUC | `preprocessing.isruc` | Preprocessed sequence and label arrays | 6 × 3000, 100 Hz |
-| HMC | `preprocessing.hmc` | Preprocessed 100-Hz recording epochs | 4 × 3000, 100 Hz |
+| ISRUC | `preprocessing.isruc` | Raw Group I recordings or sequence and label arrays | 6 × 3000, 100 Hz |
+| HMC | `preprocessing.hmc` | Official EDF recordings and sleep-scoring text files | 4 × 3000, 100 Hz |
 | MAT | `preprocessing.mat` | Raw EDF recordings or preprocessed 100-Hz LMDB | 19 × 500, 100 Hz |
 | Mumtaz | `preprocessing.mumtaz` | Raw EDF recordings or released preprocessed LMDB | 19 × 1000, 200 Hz |
 | HandMI | `preprocessing.handmi` | Released anonymous EEG recordings and event files | 32 × 400, 200 Hz |
@@ -74,7 +74,7 @@ For example:
 python -m preprocessing.handmi --source /path/to/HandMI --output data/handmi
 python -m preprocessing.ssvep_eeg --source /path/to/SSVEP-EEG --output data/ssvep_eeg
 python -m preprocessing.aestheeg --source /path/to/AesthEEG --output data/aestheeg
-python -m preprocessing.hmc --source /path/to/HMC --output data/hmc
+python -m preprocessing.hmc --source /path/to/HMC/recordings --output data/hmc
 python -m preprocessing.mumtaz --source /path/to/Mumtaz/edf --source-format raw --output data/mumtaz
 ```
 
@@ -156,4 +156,4 @@ install.sh             Environment installation
 
 ## License
 
-The project code is distributed under the MIT License. Datasets retain their respective licenses.
+The project code is distributed under the MIT License. Third-party preprocessing notices are included in `preprocessing/licenses/`. Datasets retain their respective licenses.
