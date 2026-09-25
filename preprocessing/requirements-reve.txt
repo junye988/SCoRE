@@ -1,0 +1,4 @@
+# Optional environment for the REVE EDF preprocessing entry points.
+numpy==2.3.5
+scipy==1.17.1
+mne==1.11.0

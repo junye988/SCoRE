@@ -1,0 +1,195 @@
+{
+  "dataset": "mat",
+  "model": {
+    "num_channels": 19,
+    "num_samples": 500,
+    "temporal_filters": 20,
+    "temporal_kernel": 25,
+    "pool_kernel": 75,
+    "pool_stride": 15,
+    "energy_bins": 1,
+    "embedding_width": 64,
+    "dropout": 0.5,
+    "num_classes": 2,
+    "mirror_permutation": [
+      1,
+      0,
+      3,
+      2,
+      5,
+      4,
+      7,
+      6,
+      9,
+      8,
+      11,
+      10,
+      13,
+      12,
+      15,
+      14,
+      16,
+      17,
+      18
+    ],
+    "input_precision": "float64",
+    "reflection_init": "physical",
+    "reflection_init_strength": 0.0,
+    "reflection_init_seed": 101,
+    "initial_reflection_precision": "float32",
+    "ensemble": {
+      "enabled": true,
+      "size": 3,
+      "aggregation": "mean_logits",
+      "members": [
+        {
+          "name": "seed_0048",
+          "seed": 48,
+          "model_overrides": {}
+        },
+        {
+          "name": "seed_0049",
+          "seed": 49,
+          "model_overrides": {}
+        },
+        {
+          "name": "seed_0050",
+          "seed": 50,
+          "model_overrides": {}
+        }
+      ]
+    }
+  },
+  "training": {
+    "bootstrap_max_steps": 150,
+    "bootstrap_val_every": 25,
+    "bootstrap_patience": 3,
+    "max_steps": 3000,
+    "val_every": 25,
+    "lr_warmup_steps": 100,
+    "patience": 20,
+    "batch_size": 64,
+    "eval_batch_size": 128,
+    "num_workers": 0,
+    "cpu_threads": 4,
+    "amp": true,
+    "deterministic": true,
+    "balanced_sampler": true,
+    "sampler_power": 1.0,
+    "log_every": 100,
+    "noise_std": 0.01,
+    "time_mask_prob": 0.1,
+    "time_mask_ratio": 0.05,
+    "mixup_alpha": 0.2,
+    "bootstrap_backbone_lr": 0.0003,
+    "bootstrap_head_lr": 0.001,
+    "backbone_lr": 0.0003,
+    "head_lr": 0.001,
+    "axis_lr": 0.001,
+    "reflection_lr": 0.001,
+    "weight_decay": 0.001,
+    "label_smoothing": 0.05,
+    "grad_clip": 1.0,
+    "mode": "steps",
+    "optimizer": "AdamW",
+    "optimizer_betas": [
+      0.9,
+      0.99
+    ],
+    "batch_order": "torch_dataloader",
+    "joint_seed_offset": 730019,
+    "joint_seed_reset": "after_model",
+    "warmup_paired_routes": true,
+    "warmup_checkpoint": "best",
+    "axis_weight_decay": 0.0,
+    "reflection_weight_decay": 0.0,
+    "checkpoint_metric": "balanced_accuracy",
+    "checkpoint_mode": "max",
+    "schedule": "cosine",
+    "warmup_schedule": "constant",
+    "pca_amp": true
+  },
+  "data": {
+    "alignment": "none",
+    "sampling_rate_hz": 100,
+    "num_channels": 19,
+    "num_samples": 500,
+    "class_names": [
+      "rest",
+      "mental_arithmetic"
+    ],
+    "channel_names": [
+      "Fp1",
+      "Fp2",
+      "F3",
+      "F4",
+      "F7",
+      "F8",
+      "T7",
+      "T8",
+      "C3",
+      "C4",
+      "P7",
+      "P8",
+      "P3",
+      "P4",
+      "O1",
+      "O2",
+      "Fz",
+      "Cz",
+      "Pz"
+    ],
+    "subject_split": {
+      "train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27
+      ],
+      "val": [
+        28,
+        29,
+        30,
+        31
+      ],
+      "test": [
+        32,
+        33,
+        34,
+        35
+      ]
+    }
+  },
+  "evaluation": {
+    "primary_metric": "balanced_accuracy",
+    "secondary_metrics": [
+      "auc_pr",
+      "auroc"
+    ],
+    "target_balanced_accuracy_percent": 78.46
+  }
+}
