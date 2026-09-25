@@ -2,7 +2,7 @@
 
 **Structured Contrast Reflection Equivariance for EEG**
 
-SCoRE combines a shared spatiotemporal network with learned input and output reflections. The input action is transported into each recording's aligned coordinates. A Householder output reflection aligns the two routes before prediction fusion. Training consists of supervised warm-up, output-direction initialization, and joint optimization.
+SCoRE combines a shared spatiotemporal network with learned input and output reflections. The input action is transported into each recording's aligned coordinates. A Householder output reflection aligns the two routes before prediction fusion. Its direction is learned for multiclass tasks, while binary tasks use the fixed class-swap reflection. Training consists of supervised warm-up, output-direction initialization, and joint optimization.
 
 ## Installation
 
@@ -64,9 +64,11 @@ See [the preprocessing reference](preprocessing/README.md) for source layouts, d
 | HMC | `preprocessing.hmc` | Official EDF recordings and sleep-scoring text files | 4 × 3000, 100 Hz |
 | MAT | `preprocessing.mat` | Raw EDF recordings or preprocessed 100-Hz LMDB | 19 × 500, 100 Hz |
 | Mumtaz | `preprocessing.mumtaz` | Raw EDF recordings or released preprocessed LMDB | 19 × 1000, 200 Hz |
-| HandMI | `preprocessing.handmi` | Released anonymous EEG recordings and event files | 32 × 400, 200 Hz |
-| SSVEP-EEG | `preprocessing.ssvep_eeg` | Released anonymous EEG recordings and event files | 32 × 400, 200 Hz |
-| AesthEEG | `preprocessing.aestheeg` | Released recordings or subject epochs | 32 × 751, 250 Hz |
+| HandMI | `preprocessing.handmi` | Anonymous EEG recordings and event files | 32 × 400, 200 Hz |
+| SSVEP-EEG | `preprocessing.ssvep_eeg` | Anonymous EEG recordings and event files | 32 × 400, 200 Hz |
+| AesthEEG | `preprocessing.aestheeg` | Anonymous recordings or subject epochs | 32 × 751, 250 Hz |
+
+Download links for HandMI, SSVEP-EEG, and AesthEEG will be added upon data release. Their input package formats are described in the preprocessing reference.
 
 For example:
 
