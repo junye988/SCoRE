@@ -1,20 +1,20 @@
 """Prepare HMC from official EDF recordings or preprocessed 100-Hz epochs."""
-import json
 import pickle
 import re
 from pathlib import Path
 import numpy as np
+from utils.io import read_json
 from .clinical import DATASETS, from_cache, from_records, parser_for
 
 
 def from_raw(source, output, *, alignment):
-    from ._hmc_raw import read_recording
+    from .readers.hmc import read_recording
 
     source = Path(source)
     if (source / "recordings").is_dir():
         source = source / "recordings"
     metadata_path = Path(__file__).parent / "metadata" / "hmc_recording_splits.json"
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata = read_json(metadata_path)
     partitions = {}
     seen = set()
     for split in ("train", "val", "test"):

@@ -1,83 +1,52 @@
-"""Portable memory-mapped datasets and frozen Euclidean alignment."""
+"""Portable memory-mapped EEG caches, grouped records, and serialization."""
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
-import re
 
 import numpy as np
+
+from utils.io import read_json, write_json
+from .alignment import mirror_permutation
 
 CACHE_FORMAT = "score_eeg_v1"
 SPLITS = ("train", "val", "test")
 
 
-def read_json(path):
-    return json.loads(Path(path).read_text(encoding="utf-8-sig"))
+class PreparedCache:
+    """Read prepared split arrays and apply their frozen alignment operators."""
 
+    def __init__(self, root, split):
+        self.root = Path(root)
+        self.split = split
+        self.manifest = read_json(self.root / "manifest.json")
+        self.samples = np.load(self.root / f"{split}_samples.npy", mmap_mode="r")
+        self.labels = np.load(self.root / f"{split}_labels.npy", mmap_mode="r")
+        self.groups = np.load(self.root / f"{split}_group_indices.npy", mmap_mode="r")
+        split_pairs = self.root / f"{split}_alignment_pairs.npy"
+        self.pairs = np.load(split_pairs if split_pairs.exists() else self.root / "alignment_pairs.npy")
+        if self.samples.ndim != 3 or len(self.samples) != len(self.labels) or len(self.labels) != len(self.groups):
+            raise ValueError(f"Inconsistent {split} sample, label, or group dimensions")
+        channels = self.samples.shape[1]
+        if self.pairs.shape[1:] != (2, channels, channels):
+            raise ValueError("Alignment pairs must have shape [groups, 2, channels, channels]")
+        if len(self.groups) and (self.groups.min() < 0 or self.groups.max() >= len(self.pairs)):
+            raise ValueError("Sample group indices exceed the alignment table")
+        self.aligned = bool(self.manifest.get("samples_aligned", True))
 
-def write_json(path, value):
-    Path(path).write_text(json.dumps(value, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    def __len__(self):
+        return len(self.labels)
 
-
-def sha256(path):
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for block in iter(lambda: stream.read(8 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def mirror_permutation(channels):
-    """Pair numbered electrodes, leaving midline/unpaired electrodes fixed."""
-    names = [str(name).replace(".", "").lower() for name in channels]
-    lookup = {name: i for i, name in enumerate(names)}
-    if len(lookup) != len(names):
-        raise ValueError("Channel names must be unique")
-    indices = []
-    for i, name in enumerate(names):
-        match = re.fullmatch(r"([a-z]+)([0-9]+)", name)
-        partner = name
-        if match:
-            number = int(match[2])
-            partner = f"{match[1]}{number + 1 if number % 2 else number - 1}"
-        indices.append(lookup.get(partner, i))
-    indices = np.asarray(indices, dtype=np.int64)
-    if not np.array_equal(indices[indices], np.arange(len(indices))):
-        raise ValueError("Electrode mapping must be an involution")
-    return indices
-
-
-def alignment_pair(reference, eigenvalue_floor=1e-12):
-    """Return [A, inverse(A)] for A = mean(XX^T)^(-1/2)."""
-    reference = np.asarray(reference, dtype=np.float64)
-    reference = .5 * (reference + reference.T)
-    if reference.ndim != 2 or reference.shape[0] != reference.shape[1] or not np.isfinite(reference).all():
-        raise ValueError("Alignment reference must be a finite square matrix")
-    if not 0 < eigenvalue_floor < 1:
-        raise ValueError("Relative eigenvalue floor must lie in (0,1)")
-    values, vectors = np.linalg.eigh(reference)
-    if values[-1] <= 0:
-        raise ValueError("Alignment reference must have positive signal power")
-    operator = (vectors / np.sqrt(np.maximum(values, values[-1] * eigenvalue_floor))) @ vectors.T
-    return np.stack((operator, np.linalg.inv(operator)))
-
-
-def fit_group_alignment(samples, groups, *, chunk_size=256, eigenvalue_floor=1e-12):
-    """Fit each group independently using its complete unlabeled epoch set."""
-    if samples.ndim != 3 or len(samples) != len(groups) or len(samples) == 0:
-        raise ValueError("Expected nonempty [N,C,T] samples and N group indices")
-    groups = np.asarray(groups, dtype=np.int64)
-    if groups.min() < 0 or not np.array_equal(np.unique(groups), np.arange(groups.max() + 1)):
-        raise ValueError("Group indices must be contiguous from zero")
-    sums = np.zeros((groups.max() + 1, samples.shape[1], samples.shape[1]), dtype=np.float64)
-    for start in range(0, len(samples), chunk_size):
-        work = np.asarray(samples[start:start + chunk_size], dtype=np.float64)
-        if not np.isfinite(work).all():
-            raise ValueError("EEG contains non-finite values")
-        np.add.at(sums, groups[start:start + len(work)], work @ work.transpose(0, 2, 1))
-    references = sums / np.bincount(groups)[:, None, None]
-    return np.stack([alignment_pair(reference, eigenvalue_floor) for reference in references])
+    def read(self, index):
+        sample = np.array(self.samples[index], copy=True)
+        pair = np.asarray(self.pairs[int(self.groups[index])], dtype=np.float64)
+        if not self.aligned:
+            sample = pair[0] @ sample.astype(np.float64)
+        return {
+            "sample": sample,
+            "label": int(self.labels[index]),
+            "alignment_pair": pair.copy(),
+            "index": int(index),
+        }
 
 
 def first_seen_groups(values):

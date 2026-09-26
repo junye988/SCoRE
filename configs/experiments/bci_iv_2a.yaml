@@ -1,0 +1,100 @@
+dataset: bci_iv_2a
+model:
+  temporal_filters: 40
+  temporal_kernel: 25
+  pool_kernel: 75
+  pool_stride: 15
+  energy_bins: 16
+  embedding_width: 96
+  dropout: 0.5
+  num_channels: 22
+  num_samples: 800
+  num_classes: 4
+  mirror_permutation:
+  - 0
+  - 5
+  - 4
+  - 3
+  - 2
+  - 1
+  - 12
+  - 11
+  - 10
+  - 9
+  - 8
+  - 7
+  - 6
+  - 17
+  - 16
+  - 15
+  - 14
+  - 13
+  - 20
+  - 19
+  - 18
+  - 21
+  input_precision: float32
+  reflection_init: physical
+  reflection_init_strength: 0.0
+  reflection_init_seed: 101
+  initial_reflection_precision: float32
+  ensemble:
+    enabled: true
+    size: 3
+    aggregation: mean_logits
+    members:
+    - name: physical
+      seed: 307
+      model_overrides:
+        reflection_init: physical
+        reflection_init_strength: 0.0
+        reflection_init_seed: 401
+    - name: cayley060
+      seed: 317
+      model_overrides:
+        reflection_init: cayley
+        reflection_init_strength: 0.6
+        reflection_init_seed: 401
+    - name: haar
+      seed: 337
+      model_overrides:
+        reflection_init: haar
+        reflection_init_strength: 0.0
+        reflection_init_seed: 401
+training:
+  bootstrap_epochs: 20
+  epochs: 100
+  warmup_epochs: 10
+  patience: 30
+  batch_size: 64
+  bootstrap_backbone_lr: 0.0003
+  bootstrap_head_lr: 0.001
+  backbone_lr: 0.0003
+  head_lr: 0.001
+  axis_lr: 0.001
+  reflection_lr: 0.0003
+  weight_decay: 0.01
+  label_smoothing: 0.05
+  grad_clip: 1.0
+  deterministic: true
+  mode: epochs
+  optimizer_betas:
+  - 0.9
+  - 0.999
+  batch_order: torch_dataloader
+  joint_seed_offset: 730019
+  joint_seed_reset: after_model
+  warmup_checkpoint: last
+  axis_weight_decay: 0.0
+  reflection_weight_decay: 0.0
+  amp: true
+  schedule: cosine
+  bootstrap_patience: null
+  val_macro_f1_tiebreak: true
+  val_loss_tiebreak: true
+  pca_amp: false
+  val_loss_label_smoothing: true
+input:
+  sampling_rate_hz: 200
+evaluation:
+  target_balanced_accuracy_percent: 68.49

@@ -1,0 +1,108 @@
+dataset: handmi
+model:
+  temporal_filters: 40
+  temporal_kernel: 25
+  pool_kernel: 75
+  pool_stride: 15
+  energy_bins: 4
+  embedding_width: 96
+  dropout: 0.5
+  num_channels: 32
+  num_samples: 400
+  num_classes: 2
+  mirror_permutation:
+  - 2
+  - 1
+  - 0
+  - 7
+  - 6
+  - 5
+  - 4
+  - 3
+  - 11
+  - 10
+  - 9
+  - 8
+  - 18
+  - 17
+  - 16
+  - 15
+  - 14
+  - 13
+  - 12
+  - 22
+  - 21
+  - 20
+  - 19
+  - 27
+  - 26
+  - 25
+  - 24
+  - 23
+  - 28
+  - 31
+  - 30
+  - 29
+  input_precision: float64
+  reflection_init: physical
+  reflection_init_strength: 0.0
+  reflection_init_seed: 101
+  initial_reflection_precision: float32
+  ensemble:
+    enabled: true
+    size: 3
+    aggregation: mean_logits
+    members:
+    - name: seed_0142
+      seed: 142
+      model_overrides: {}
+    - name: seed_0143
+      seed: 143
+      model_overrides: {}
+    - name: seed_0144
+      seed: 144
+      model_overrides: {}
+training:
+  weight_decay: 0.003
+  backbone_lr: 0.0003
+  head_lr: 0.001
+  warmup_backbone_lr: 0.0003
+  warmup_head_lr: 0.001
+  reflection_lr: 0.0001
+  axis_lr: 0.001
+  label_smoothing: 0.05
+  mixup: 0.3
+  gain_log_std: 0
+  noise_rms_fraction: 0
+  channel_drop_probability: 0
+  max_dropped_channels: 0
+  warmup_epochs: 12
+  warmup_min_epochs: 3
+  warmup_patience: 3
+  epochs: 80
+  min_epochs: 40
+  patience: 25
+  batch_size: 32
+  schedule: cosine
+  cosine_epochs: 40
+  min_lr_ratio: 0.05
+  val_loss_tiebreak: false
+  classweight_power: 0
+  gradient_clip: 1.0
+  mode: epochs
+  optimizer_betas:
+  - 0.9
+  - 0.999
+  batch_order: numpy_array_split
+  joint_seed_offset: 730019
+  joint_seed_reset: before_model
+  warmup_checkpoint: best
+  axis_weight_decay: 0.0
+  reflection_weight_decay: 0.0
+  amp: false
+  deterministic: true
+  pca_amp: false
+input:
+  sampling_rate_hz: 200
+evaluation:
+  target_balanced_accuracy_percent: 70.14

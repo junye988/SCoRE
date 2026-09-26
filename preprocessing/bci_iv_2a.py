@@ -7,7 +7,8 @@ import tempfile
 
 import numpy as np
 
-from .common import CacheWriter, SPLITS, first_seen_groups, read_json, sha256
+from utils.io import read_json, sha256_file
+from .cache import CacheWriter, SPLITS, first_seen_groups
 
 
 def from_cache(source, output):
@@ -33,7 +34,7 @@ def from_cache(source, output):
         r = np.load(source / f"{split}_sessions.npy")
         keys, groups = first_seen_groups(list(zip(s.tolist(), r.tolist())))
         pairs = np.stack([lookup[key] for key in keys])
-        writer.add_split(split, x, y, groups, pairs, source_hash=sha256(source / f"{split}_samples.npy"))
+        writer.add_split(split, x, y, groups, pairs, source_hash=sha256_file(source / f"{split}_samples.npy"))
     return writer.finish()
 
 
@@ -48,7 +49,7 @@ def main(argv=None):
         return from_cache(args.source, args.output)
     if args.labels is None:
         parser.error("--labels is required for official GDF input")
-    from ._bci_raw import build_reve_cache
+    from .readers.bci_iv_2a import build_reve_cache
     with tempfile.TemporaryDirectory(prefix="score-bci-") as work:
         cache = Path(work) / "cache"
         build_reve_cache(args.source, args.labels, cache)

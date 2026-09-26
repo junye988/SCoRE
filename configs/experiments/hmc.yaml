@@ -1,0 +1,86 @@
+dataset: hmc
+model:
+  num_channels: 4
+  num_samples: 3000
+  temporal_filters: 40
+  temporal_kernel: 75
+  pool_kernel: 75
+  pool_stride: 15
+  energy_bins: 16
+  embedding_width: 96
+  dropout: 0.5
+  num_classes: 5
+  mirror_permutation:
+  - 0
+  - 3
+  - 2
+  - 1
+  input_precision: float64
+  reflection_init: physical
+  reflection_init_strength: 0.0
+  reflection_init_seed: 101
+  initial_reflection_precision: float32
+  ensemble:
+    enabled: true
+    size: 3
+    aggregation: mean_logits
+    members:
+    - name: seed_0042
+      seed: 42
+      model_overrides: {}
+    - name: seed_0043
+      seed: 43
+      model_overrides: {}
+    - name: seed_0044
+      seed: 44
+      model_overrides: {}
+training:
+  bootstrap_max_steps: 1500
+  bootstrap_val_every: 200
+  bootstrap_patience: 3
+  max_steps: 20000
+  val_every: 200
+  lr_warmup_steps: 1000
+  patience: 12
+  batch_size: 64
+  eval_batch_size: 128
+  num_workers: 4
+  amp: true
+  deterministic: true
+  balanced_sampler: true
+  sampler_power: 1.0
+  noise_std: 0.0
+  time_mask_prob: 0.0
+  time_mask_ratio: 0.05
+  mixup_alpha: 0.2
+  bootstrap_backbone_lr: 0.0003
+  bootstrap_head_lr: 0.001
+  backbone_lr: 0.0003
+  head_lr: 0.001
+  axis_lr: 0.001
+  reflection_lr: 0.0003
+  weight_decay: 0.001
+  label_smoothing: 0.05
+  grad_clip: 1.0
+  mode: steps
+  optimizer_betas:
+  - 0.9
+  - 0.99
+  batch_order: torch_dataloader
+  joint_seed_offset: 730019
+  joint_seed_reset: after_model
+  warmup_checkpoint: best
+  axis_weight_decay: 0.0
+  reflection_weight_decay: 0.0
+  schedule: cosine
+  pca_amp: true
+input:
+  sampling_rate_hz: 100
+  channel_names:
+  - F4
+  - C4
+  - O2
+  - C3
+  require_identity_alignment: true
+evaluation:
+  target_balanced_accuracy_percent: 79.79

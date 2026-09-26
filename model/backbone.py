@@ -5,7 +5,7 @@ from torch import Tensor, nn
 
 
 class ShallowLogEnergyBackbone(nn.Module):
-    def __init__(self, *, num_channels=22, num_samples=800, temporal_filters=40,
+    def __init__(self, *, num_channels, num_samples, temporal_filters=40,
                  temporal_kernel=25, pool_kernel=75, pool_stride=15,
                  energy_bins=16, embedding_width=96, dropout=0.5):
         super().__init__()

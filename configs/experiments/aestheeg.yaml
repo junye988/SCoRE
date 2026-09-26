@@ -1,0 +1,141 @@
+dataset: aestheeg
+model:
+  temporal_filters: 40
+  temporal_kernel: 75
+  pool_kernel: 75
+  pool_stride: 15
+  energy_bins: 16
+  embedding_width: 96
+  dropout: 0.5
+  num_channels: 32
+  num_samples: 751
+  num_classes: 4
+  mirror_permutation:
+  - 2
+  - 1
+  - 0
+  - 7
+  - 6
+  - 5
+  - 4
+  - 3
+  - 11
+  - 10
+  - 9
+  - 8
+  - 18
+  - 17
+  - 16
+  - 15
+  - 14
+  - 13
+  - 12
+  - 22
+  - 21
+  - 20
+  - 19
+  - 27
+  - 26
+  - 25
+  - 24
+  - 23
+  - 28
+  - 31
+  - 30
+  - 29
+  input_precision: float64
+  reflection_init: physical
+  reflection_init_strength: 0.0
+  reflection_init_seed: 101
+  initial_reflection_precision: float32
+  ensemble:
+    enabled: true
+    size: 3
+    aggregation: mean_logits
+    members:
+    - name: seed_0042
+      seed: 42
+      model_overrides: {}
+    - name: seed_0043
+      seed: 43
+      model_overrides: {}
+    - name: seed_0044
+      seed: 44
+      model_overrides: {}
+training:
+  weight_decay: 0.003
+  backbone_lr: 0.0003
+  head_lr: 0.001
+  warmup_backbone_lr: 0.0003
+  warmup_head_lr: 0.001
+  reflection_lr: 0.0001
+  axis_lr: 0.001
+  label_smoothing: 0.02
+  mixup: 0.4
+  gain_log_std: 0
+  noise_rms_fraction: 0
+  channel_drop_probability: 0
+  max_dropped_channels: 0
+  warmup_epochs: 16
+  warmup_min_epochs: 3
+  warmup_patience: 3
+  epochs: 60
+  min_epochs: 20
+  patience: 15
+  batch_size: 64
+  schedule: cosine
+  cosine_epochs: 30
+  min_lr_ratio: 0.05
+  val_loss_tiebreak: false
+  classweight_power: 1
+  gradient_clip: 1
+  mode: epochs
+  optimizer_betas:
+  - 0.9
+  - 0.999
+  batch_order: numpy_array_split
+  joint_seed_offset: 730019
+  joint_seed_reset: before_model
+  warmup_checkpoint: best
+  axis_weight_decay: 0.0
+  reflection_weight_decay: 0.0
+  amp: false
+  deterministic: true
+  pca_amp: false
+input:
+  sampling_rate_hz: 250
+  channel_names:
+  - Fp1
+  - Fpz
+  - Fp2
+  - F7
+  - F3
+  - Fz
+  - F4
+  - F8
+  - FC5
+  - FC1
+  - FC2
+  - FC6
+  - M1
+  - T7
+  - C3
+  - Cz
+  - C4
+  - T8
+  - M2
+  - CP5
+  - CP1
+  - CP2
+  - CP6
+  - P7
+  - P3
+  - Pz
+  - P4
+  - P8
+  - POz
+  - O1
+  - Oz
+  - O2
+evaluation:
+  target_balanced_accuracy_percent: 68.24

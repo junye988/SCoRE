@@ -6,7 +6,9 @@ import tempfile
 
 import numpy as np
 
-from .common import CacheWriter, SPLITS, fit_group_alignment, read_json, sha256
+from utils.io import read_json, sha256_file
+from .alignment import fit_group_alignment
+from .cache import CacheWriter, SPLITS
 
 DATASETS = {
     "isruc": {"name": "ISRUC", "channels": ["F3", "C3", "O1", "F4", "C4", "O2"], "samples": 3000, "rate": 100,
@@ -59,7 +61,7 @@ def from_cache(dataset, source, output, *, alignment, ea_source=None):
             pairs = np.load(ea_source / f"{split}_alignment_pairs.npy", allow_pickle=False)
             if not np.array_equal(g, np.load(ea_source / f"{split}_group_indices.npy", allow_pickle=False)):
                 raise ValueError("EA artifacts use different epoch-group assignments")
-        writer.add_split(split, x, y, g, pairs, source_hash=sha256(source / f"{split}_samples.npy"))
+        writer.add_split(split, x, y, g, pairs, source_hash=sha256_file(source / f"{split}_samples.npy"))
     return writer.finish()
 
 

@@ -4,12 +4,6 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
-BCI_IV_2A_PERMUTATION = (
-    0, 5, 4, 3, 2, 1, 12, 11, 10, 9, 8, 7, 6, 17, 16, 15,
-    14, 13, 20, 19, 18, 21,
-)
-
-
 @dataclass(frozen=True)
 class EnsembleConfig:
     enabled: bool = False
@@ -49,10 +43,10 @@ class EnsembleConfig:
 
 @dataclass(frozen=True)
 class ModelConfig:
-    num_channels: int = 22
-    num_samples: int = 800
-    num_classes: int = 4
-    mirror_permutation: tuple[int, ...] = BCI_IV_2A_PERMUTATION
+    num_channels: int
+    num_samples: int
+    num_classes: int
+    mirror_permutation: tuple[int, ...]
     temporal_filters: int = 40
     temporal_kernel: int = 25
     pool_kernel: int = 75

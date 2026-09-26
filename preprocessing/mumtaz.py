@@ -5,13 +5,13 @@ from pathlib import Path
 import tempfile
 import numpy as np
 from .clinical import from_cache, from_records, parser_for
-from .common import SPLITS
+from .cache import SPLITS
 
 
 def from_raw(source, output, alignment):
     import mne
     import scipy
-    from ._mumtaz_raw import prepare_recording, split_filenames
+    from .readers.mumtaz import prepare_recording, split_filenames
     from .clinical import make_writer, pairs_for
     partitions = split_filenames(source)
     if any(not files for files in partitions.values()):

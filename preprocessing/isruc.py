@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import numpy as np
 from .clinical import from_cache, from_records, parser_for
-from .common import read_json, write_json
+from utils.io import read_json, write_json
 
 METADATA_DIR = Path(__file__).parent / "metadata"
 
@@ -49,7 +49,7 @@ def model_input(values):
 
 
 def from_raw(source, output, order, alignment):
-    from ._isruc_raw import prepare_recording
+    from .readers.isruc import prepare_recording
     inventory = read_json(METADATA_DIR / "isruc_channel_inventory.json")["source_channels_by_subject"]
     partitions = {"train": [], "val": [], "test": []}
     next_sequence = 0

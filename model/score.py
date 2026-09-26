@@ -1,5 +1,6 @@
 """SCoRE with a learned input involution and a Householder output action."""
 
+import numpy as np
 import torch
 from torch import Tensor, nn
 
@@ -43,11 +44,9 @@ def _readout_axis(classifier):
 class SCoRE(nn.Module):
     """Map aligned EEG [B,C,T] and alignment pairs [B,2,C,C] to class logits."""
 
-    def __init__(self, config: ModelConfig | dict | None = None, *, initial_axis=None):
+    def __init__(self, config: ModelConfig | dict, *, initial_axis=None):
         super().__init__()
-        self.config = ModelConfig() if config is None else (
-            ModelConfig.from_dict(config) if isinstance(config, dict) else config
-        )
+        self.config = ModelConfig.from_dict(config) if isinstance(config, dict) else config
         config = self.config
         self.num_classes = config.num_classes
         self.backbone = _backbone(config)
@@ -156,11 +155,9 @@ class SCoRE(nn.Module):
 class PairedDirectWarmupNet(nn.Module):
     """Direct-logit warm-up with joint processing of both input routes."""
 
-    def __init__(self, config: ModelConfig | dict | None = None):
+    def __init__(self, config: ModelConfig | dict):
         super().__init__()
-        self.config = ModelConfig() if config is None else (
-            ModelConfig.from_dict(config) if isinstance(config, dict) else config
-        )
+        self.config = ModelConfig.from_dict(config) if isinstance(config, dict) else config
         self.num_classes = self.config.num_classes
         self.backbone = _backbone(self.config)
         self.register_buffer("mirror_permutation", torch.tensor(self.config.mirror_permutation))
@@ -170,6 +167,16 @@ class PairedDirectWarmupNet(nn.Module):
     @property
     def classifier(self):
         return self.backbone.classifier
+
+    def transport_reflections(self, alignment_pairs: np.ndarray) -> Tensor:
+        """Return CPU float32 actions [G,C,C] from float64 NumPy products."""
+        pairs = np.asarray(alignment_pairs, dtype=np.float64)
+        channels = self.config.num_channels
+        if pairs.ndim != 4 or tuple(pairs.shape[1:]) != (2, channels, channels):
+            raise ValueError("Expected alignment pairs [G,2,C,C]")
+        initial = self.initial_input_reflection.detach().cpu().double().numpy()
+        operators = np.stack([a @ initial @ inverse for a, inverse in pairs]).astype(np.float32)
+        return torch.from_numpy(operators)
 
     def reflection_operator(self, alignment_pair):
         """Compute the fixed warm-up action from each group's alignment."""

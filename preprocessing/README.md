@@ -2,6 +2,8 @@
 
 Run these commands from the repository root. Input paths refer to locally downloaded datasets. Output directories must be new. Each command writes a portable cache for `experiments` and `demo.py`.
 
+The public dataset modules provide the preparation CLI and partition conversion. Dataset-specific recording readers live in `readers/`; `alignment.py` contains the shared frozen alignment and electrode transforms, and `cache.py` reads and writes the portable cache. `acquisition.py` resolves prepared-data locations using the sources in `configs/data_sources.yaml` at the repository root.
+
 ## Data availability
 
 Official download pages are available for [BCI-IV-2a](https://www.bbci.de/competition/iv/) (GDF recordings and evaluation labels), [PhysioNet-MI](https://physionet.org/content/eegmmidb/1.0.0/), [ISRUC](https://sleeptight.isr.uc.pt/?page_id=48) (raw Group I recordings), [HMC](https://physionet.org/content/hmc-sleep-staging/1.1/), [MAT](https://physionet.org/content/eegmat/1.0.0/) and [Mumtaz](https://figshare.com/articles/dataset/EEG_Data_New/4244171).

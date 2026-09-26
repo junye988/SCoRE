@@ -1,12 +1,15 @@
-"""BCI-IV-2a demonstration and command-line access to the EEG experiments."""
+"""Download the BCI-IV-2a demo data and run the configured experiment."""
 
-from experiments.demo_data import prepare_demo_data
-from experiments.run import parse_args, run
+from experiments.cli import parse_args
+from experiments.runner import run
+from preprocessing.acquisition import resolve_data_dir
 
 
 def main(argv=None):
     args = parse_args(argv, default_dataset="bci_iv_2a")
-    prepare_demo_data(args)
+    if not args.show_config:
+        splits = ("test",) if args.mode == "evaluate" else ("train", "val", "test")
+        args.data_dir = resolve_data_dir(args.dataset, args.data_dir, splits=splits)
     return run(args)
 
 

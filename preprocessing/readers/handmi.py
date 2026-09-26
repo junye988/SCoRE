@@ -14,20 +14,14 @@ import numpy as np
 import scipy
 from scipy.signal import butter, resample_poly, sosfiltfilt
 
+from utils.io import read_json, sha256_file
+
 
 STAGES = ("baseline_onset", "cue_onset", "mi_onset", "rest_onset")
 CSV_FIELDS = ["subject_id", "block", "trial_id", "label", "baseline_onset_s",
               "cue_onset_s", "mi_onset_s", "rest_onset_s", "trial_end_s", "mi_duration_s"]
 SUBJECT_NAMES = [f"S{i:03d}" for i in range(1, 13)]
 NUMERIC_TAL = re.compile(rb"([+-]\d+(?:\.\d+)?)(?:\x15[^\x14]*)?\x14\s*(\d+)\x14")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(8 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def read_edf(raw: bytes) -> tuple[np.ndarray, dict, list[dict]]:
@@ -223,7 +217,7 @@ def find_recordings(data_dir: Path) -> list[dict]:
     manifest_path = data_dir / "manifest.json"
     if not manifest_path.is_file():
         raise FileNotFoundError("Dataset requires manifest.json")
-    if not isinstance(json.loads(manifest_path.read_text(encoding="utf-8-sig")), dict):
+    if not isinstance(read_json(manifest_path), dict):
         raise ValueError("manifest.json must contain a JSON object")
     recordings = []
     for subject in SUBJECT_NAMES:

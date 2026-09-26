@@ -1,111 +1,19 @@
-"""Two-stage SCoRE training with dataset-specific optimization settings."""
-
-from __future__ import annotations
+"""Two-stage optimization, checkpoint selection, and training history."""
 
 import json
 import math
-import random
 import time
 from pathlib import Path
 
 import numpy as np
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, WeightedRandomSampler
 
+from utils.io import write_json
+from utils.metrics import classification_metrics
 from .augmentation import aligned_mixup, augment
-from .data import ArraySplitSampler
-from .metrics import classification_metrics
-
-
-def save_json(path, value):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(value, indent=2, allow_nan=False), encoding="utf-8")
-    temporary.replace(path)
-
-
-def seed_all(seed, deterministic=True):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-    torch.use_deterministic_algorithms(deterministic, warn_only=True)
-    torch.backends.cudnn.benchmark = not deterministic
-
-
-def _worker_seed(_):
-    seed = torch.initial_seed() % 2**32
-    random.seed(seed)
-    np.random.seed(seed)
-
-
-def make_loader(dataset, settings, seed, *, training=False):
-    batch_size = int(settings.get("batch_size", 64) if training else
-                     settings.get("eval_batch_size", settings.get("batch_size", 64)))
-    common = dict(num_workers=int(settings.get("num_workers", 0)),
-                  pin_memory=torch.cuda.is_available(), worker_init_fn=_worker_seed)
-    generator = torch.Generator().manual_seed(seed)
-    if settings.get("batch_order") == "numpy_array_split":
-        batches = ArraySplitSampler(len(dataset), batch_size) if training else [
-            part.tolist() for part in np.array_split(
-                np.arange(len(dataset)), max(1, int(np.ceil(len(dataset) / batch_size))),
-            )
-        ]
-        return DataLoader(dataset, batch_sampler=batches, generator=generator, **common)
-    sampler = None
-    if training and settings.get("balanced_sampler", False):
-        labels = np.asarray(dataset.labels, dtype=np.int64)
-        counts = np.bincount(labels)
-        weights = counts[labels].astype(np.float64) ** -float(settings.get("sampler_power", 1))
-        sampler = WeightedRandomSampler(torch.as_tensor(weights), len(labels), replacement=True,
-                                        generator=generator)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=training and sampler is None,
-                      sampler=sampler, generator=generator, drop_last=False, **common)
-
-
-def batch_to_device(batch, device, precision):
-    dtype = torch.float64 if precision == "float64" else torch.float32
-    return (batch["sample"].to(device, dtype=dtype, non_blocking=True),
-            batch["label"].to(device, dtype=torch.long, non_blocking=True),
-            batch["alignment_pair"].to(device, dtype=torch.float64, non_blocking=True))
-
-
-def forward_batch(model, x, pair, batch, dataset, *, diagnostics=False):
-    """Use the cached FP64-to-FP32 warm-up action for FP32 experiments."""
-    if model.config.input_precision == "float32" and not hasattr(model, "reflection_raw"):
-        cache = getattr(model, "_warmup_operators", None)
-        if cache is None:
-            cache = model._warmup_operators = {}
-        key = (str(dataset.root), dataset.split, str(x.device))
-        if key not in cache:
-            pairs = np.asarray(dataset.pairs, dtype=np.float64)
-            initial = model.initial_input_reflection.detach().cpu().double().numpy()
-            operators = np.stack([a @ initial @ inverse for a, inverse in pairs]).astype(np.float32)
-            cache[key] = torch.from_numpy(operators).to(x.device)
-        groups = np.asarray(dataset.groups)[batch["index"].cpu().numpy()]
-        operator = cache[key][torch.as_tensor(groups, device=x.device, dtype=torch.long)]
-        return model(x, reflection_operator=operator, return_diagnostics=diagnostics)
-    return model(x, pair, return_diagnostics=diagnostics)
-
-
-@torch.inference_mode()
-def predict(model, loader, device, *, amp=False, diagnostics=False):
-    model.eval()
-    outputs = []
-    labels = []
-    precision = model.config.input_precision
-    for batch in loader:
-        x, y, pair = batch_to_device(batch, device, precision)
-        with torch.autocast(device.type, dtype=torch.float16, enabled=amp and device.type == "cuda"):
-            result = forward_batch(model, x, pair, batch, loader.dataset, diagnostics=diagnostics)
-        if diagnostics:
-            result = result["odd_logit_difference"]
-        outputs.append(result.detach().float().cpu().numpy())
-        labels.append(y.cpu().numpy())
-    return np.concatenate(labels), np.concatenate(outputs)
+from .batches import batch_to_device, forward_batch
+from .evaluation import predict
 
 
 def optimizer_for(model, settings, *, warmup):
@@ -222,7 +130,7 @@ def fit_stage(model, train_loader, val_loader, settings, directory, device, *, w
         row = dict(stage=stage, epoch=epoch, step=updates, validation=metrics,
                    best_balanced_accuracy=best_key[0], seconds=time.perf_counter() - begin)
         history.append(row)
-        save_json(directory / f"{stage}_history.json", history)
+        write_json(directory / f"{stage}_history.json", history)
         print(json.dumps({"stage": stage, "epoch": epoch, "step": updates,
                           "val_balanced_accuracy": metrics["balanced_accuracy"],
                           "best": best_key[0]}), flush=True)
@@ -274,7 +182,7 @@ def fit_stage(model, train_loader, val_loader, settings, directory, device, *, w
             else:
                 history.append(dict(stage=stage, epoch=epoch, step=updates,
                                     seconds=time.perf_counter() - begin))
-                save_json(directory / f"{stage}_history.json", history)
+                write_json(directory / f"{stage}_history.json", history)
                 print(json.dumps({"stage": stage, "epoch": epoch, "step": updates}), flush=True)
         if position >= minimum and patience and stale >= patience:
             break

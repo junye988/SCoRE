@@ -13,7 +13,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.source_format == "windows":
         return convert_windows(args.source, args.output, "SSVEP-EEG")
-    from ._ssvep_raw import build_cache
+    from .readers.ssvep_eeg import build_cache
     with tempfile.TemporaryDirectory(prefix="score-ssvep-") as work:
         cache = Path(work) / "windows"
         build_cache(args.source, cache)

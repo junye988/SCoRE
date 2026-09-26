@@ -2,7 +2,8 @@
 from pathlib import Path
 import numpy as np
 
-from .common import CacheWriter, SPLITS, sha256
+from utils.io import sha256_file
+from .cache import CacheWriter, SPLITS
 
 
 def convert_windows(source, output, dataset):
@@ -26,7 +27,7 @@ def convert_windows(source, output, dataset):
                                         "alignment_fit": "complete imagery trials" if dataset == "HandMI" else "disjoint stimulation/rest intervals",
                                         "window_seconds": 2, "bandpass_hz": [4, 40] if dataset == "HandMI" else [3, 45]})
     ranges = (range(8), range(8, 10), range(10, 12))
-    source_hash = sha256(source)
+    source_hash = sha256_file(source)
     for split, selected in zip(SPLITS, ranges):
         selected = np.asarray(list(selected))
         indices = np.flatnonzero(np.isin(subjects, selected))

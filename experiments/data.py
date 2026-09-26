@@ -1,49 +1,34 @@
-"""Memory-mapped EEG datasets with group-specific alignment operators."""
-
-from __future__ import annotations
-
-import json
-from pathlib import Path
+"""PyTorch dataset adapters and experiment minibatch sampling."""
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+
+from preprocessing.cache import PreparedCache
+from utils.reproducibility import worker_seed
 
 
 class EEGDataset(Dataset):
+    """Convert a prepared cache's samples to training tensors."""
+
     def __init__(self, root, split):
-        self.root = Path(root)
-        self.split = split
-        with (self.root / "manifest.json").open(encoding="utf-8") as stream:
-            self.manifest = json.load(stream)
-        self.samples = np.load(self.root / f"{split}_samples.npy", mmap_mode="r")
-        self.labels = np.load(self.root / f"{split}_labels.npy", mmap_mode="r")
-        self.groups = np.load(self.root / f"{split}_group_indices.npy", mmap_mode="r")
-        split_pairs = self.root / f"{split}_alignment_pairs.npy"
-        self.pairs = np.load(split_pairs if split_pairs.exists() else self.root / "alignment_pairs.npy")
-        if self.samples.ndim != 3 or len(self.samples) != len(self.labels) or len(self.labels) != len(self.groups):
-            raise ValueError(f"Inconsistent {split} sample, label, or group dimensions")
-        channels = self.samples.shape[1]
-        if self.pairs.shape[1:] != (2, channels, channels):
-            raise ValueError("Alignment pairs must have shape [groups, 2, channels, channels]")
-        if len(self.groups) and (self.groups.min() < 0 or self.groups.max() >= len(self.pairs)):
-            raise ValueError("Sample group indices exceed the alignment table")
-        self.aligned = bool(self.manifest.get("samples_aligned", True))
+        self.cache = PreparedCache(root, split)
+        self.root = self.cache.root
+        self.split = self.cache.split
+        self.manifest = self.cache.manifest
+        self.samples = self.cache.samples
+        self.labels = self.cache.labels
+        self.groups = self.cache.groups
+        self.pairs = self.cache.pairs
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.cache)
 
     def __getitem__(self, index):
-        sample = np.array(self.samples[index], copy=True)
-        pair = np.asarray(self.pairs[int(self.groups[index])], dtype=np.float64)
-        if not self.aligned:
-            sample = pair[0] @ sample.astype(np.float64)
-        return {
-            "sample": torch.from_numpy(sample),
-            "label": int(self.labels[index]),
-            "alignment_pair": torch.from_numpy(pair.copy()),
-            "index": int(index),
-        }
+        item = self.cache.read(index)
+        item["sample"] = torch.from_numpy(item["sample"])
+        item["alignment_pair"] = torch.from_numpy(item["alignment_pair"])
+        return item
 
 
 class ArraySplitSampler:
@@ -59,3 +44,27 @@ class ArraySplitSampler:
 
     def __len__(self):
         return max(1, int(np.ceil(self.size / self.batch_size)))
+
+
+def make_loader(dataset, settings, seed, *, training=False):
+    batch_size = int(settings.get("batch_size", 64) if training else
+                     settings.get("eval_batch_size", settings.get("batch_size", 64)))
+    common = dict(num_workers=int(settings.get("num_workers", 0)),
+                  pin_memory=torch.cuda.is_available(), worker_init_fn=worker_seed)
+    generator = torch.Generator().manual_seed(seed)
+    if settings.get("batch_order") == "numpy_array_split":
+        batches = ArraySplitSampler(len(dataset), batch_size) if training else [
+            part.tolist() for part in np.array_split(
+                np.arange(len(dataset)), max(1, int(np.ceil(len(dataset) / batch_size))),
+            )
+        ]
+        return DataLoader(dataset, batch_sampler=batches, generator=generator, **common)
+    sampler = None
+    if training and settings.get("balanced_sampler", False):
+        labels = np.asarray(dataset.labels, dtype=np.int64)
+        counts = np.bincount(labels)
+        weights = counts[labels].astype(np.float64) ** -float(settings.get("sampler_power", 1))
+        sampler = WeightedRandomSampler(torch.as_tensor(weights), len(labels), replacement=True,
+                                        generator=generator)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=training and sampler is None,
+                      sampler=sampler, generator=generator, drop_last=False, **common)

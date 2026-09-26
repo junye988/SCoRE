@@ -1,9 +1,7 @@
-"""Download and safely install the prepared BCI-IV-2a demo dataset."""
-
+"""Verified HTTPS downloads and safe, atomic ZIP installation."""
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shutil
@@ -15,68 +13,31 @@ from urllib.request import Request, urlopen
 import zipfile
 
 
-SOURCE_CONFIG = Path(__file__).resolve().parent / "configs" / "demo_data.json"
-SPLITS = ("train", "val", "test")
-
-
-def cache_problem(root, splits=SPLITS):
-    """Return a presence/manifest error, leaving array validation to the runner."""
-    root = Path(root)
-    try:
-        with (root / "manifest.json").open(encoding="utf-8-sig") as stream:
-            manifest = json.load(stream)
-        if not isinstance(manifest, dict):
-            return "manifest.json must contain an object"
-        if manifest.get("format") != "score_eeg_v1" or manifest.get("status") != "complete":
-            return "manifest.json does not describe a complete prepared cache"
-        if manifest.get("dataset") not in ("BCI-IV-2a", "bci_iv_2a"):
-            return "manifest.json does not describe BCI-IV-2a"
-        for split in splits:
-            required = [root / f"{split}_{suffix}.npy"
-                        for suffix in ("samples", "labels", "group_indices")]
-            pairs = root / f"{split}_alignment_pairs.npy"
-            required.append(pairs if pairs.exists() else root / "alignment_pairs.npy")
-            for path in required:
-                if not path.is_file() or path.stat().st_size == 0:
-                    return f"missing or empty {path.name}"
-    except (OSError, UnicodeError, ValueError) as error:
-        return f"cannot read prepared cache: {error}"
-    return None
+def _validate_source(source):
+    if urlsplit(source["url"]).scheme != "https":
+        raise ValueError("The archive source must use HTTPS")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", source["sha256"]):
+        raise ValueError("The archive source must specify a SHA-256 digest")
+    if type(source["size_bytes"]) is not int or source["size_bytes"] <= 0:
+        raise ValueError("The archive source must specify a positive size_bytes")
 
 
 def _require_empty_destination(root):
     if root.is_symlink() or (root.exists() and (not root.is_dir() or any(root.iterdir()))):
-        problem = cache_problem(root)
-        raise FileExistsError(
-            f"Cannot install BCI-IV-2a into {root}: {problem or 'destination is occupied'}. "
-            "Choose an empty --data-dir or repair the existing prepared cache. "
-            "Existing files have been left in place."
-        )
-
-
-def _read_source(path):
-    with Path(path).open(encoding="utf-8-sig") as stream:
-        source = json.load(stream)["bci_iv_2a"]
-    if urlsplit(source["url"]).scheme != "https":
-        raise ValueError("The demo dataset source must use HTTPS")
-    if not re.fullmatch(r"[0-9a-fA-F]{64}", source["sha256"]):
-        raise ValueError("The demo dataset source must specify a SHA-256 digest")
-    if type(source["size_bytes"]) is not int or source["size_bytes"] <= 0:
-        raise ValueError("The demo dataset source must specify a positive size_bytes")
-    return source
+        raise FileExistsError(f"Cannot install archive into occupied destination: {root}")
 
 
 def _download(source, target):
     expected = source["size_bytes"]
     host = urlsplit(source["url"]).netloc
-    print(f"Downloading prepared BCI-IV-2a ({expected / 2**20:.1f} MiB) from {host}", flush=True)
-    request = Request(source["url"], headers={"User-Agent": "SCoRE-demo/1.0"})
+    print(f"Downloading archive ({expected / 2**20:.1f} MiB) from {host}", flush=True)
+    request = Request(source["url"], headers={"User-Agent": "SCoRE/1.0"})
     digest = hashlib.sha256()
     received = 0
     last_update = time.monotonic()
     with urlopen(request, timeout=60) as response, target.open("xb") as output:
         if urlsplit(response.geturl()).scheme != "https":
-            raise ValueError("The demo dataset download redirected away from HTTPS")
+            raise ValueError("The archive download redirected away from HTTPS")
         length = response.headers.get("Content-Length")
         if length is not None and int(length) != expected:
             raise ValueError(f"Download size differs from the configured {expected} bytes")
@@ -94,8 +55,8 @@ def _download(source, target):
     if received != expected:
         raise ValueError(f"Incomplete download: received {received} of {expected} bytes")
     if digest.hexdigest() != source["sha256"].lower():
-        raise ValueError("BCI-IV-2a archive SHA-256 mismatch; the download was not installed")
-    print("Archive SHA-256 verified. Extracting prepared data...", flush=True)
+        raise ValueError("Archive SHA-256 mismatch; the download was not installed")
+    print("Archive SHA-256 verified. Extracting...", flush=True)
 
 
 def _extract_archive(archive, destination):
@@ -136,53 +97,38 @@ def _extract_archive(archive, destination):
                     shutil.copyfileobj(source, output, length=1 << 20)
 
 
-def ensure_bci_data(root, *, splits=SPLITS, source_config=SOURCE_CONFIG):
-    """Reuse a prepared cache or atomically install a verified archive."""
-    root = Path(root).absolute()
-    problem = cache_problem(root, splits)
-    if problem is None:
-        print(f"Using prepared BCI-IV-2a data: {root}", flush=True)
-        return root
+def install_archive(source, destination, validate):
+    """Install a verified ZIP whose root passes ``validate(path)``.
+
+    The callback returns ``None`` for valid contents or an explanatory string.
+    A single enclosing directory is accepted. The destination must be absent or
+    empty, and it is rechecked before the prepared directory is renamed into it.
+    """
+    root = Path(destination).absolute()
     _require_empty_destination(root)
-    source = _read_source(source_config)
+    _validate_source(source)
     root.parent.mkdir(parents=True, exist_ok=True)
     if source["size_bytes"] > shutil.disk_usage(root.parent).free:
-        raise OSError("Not enough disk space to download the BCI-IV-2a archive")
+        raise OSError("Not enough disk space to download the archive")
     with tempfile.TemporaryDirectory(prefix=f".{root.name}-download-", dir=root.parent) as work:
         staging = Path(work)
-        archive = staging / "dataset.zip"
+        archive = staging / "archive.zip"
         _download(source, archive)
         extracted = staging / "extracted"
         extracted.mkdir()
         _extract_archive(archive, extracted)
         prepared = extracted
-        if not (prepared / "manifest.json").is_file():
+        problem = validate(prepared)
+        if problem is not None:
             children = list(extracted.iterdir())
             if len(children) == 1 and children[0].is_dir():
                 prepared = children[0]
-        problem = cache_problem(prepared)
+                problem = validate(prepared)
         if problem is not None:
-            raise ValueError(f"Downloaded archive is not a complete prepared BCI-IV-2a cache: {problem}")
-        # Recheck after the download so a concurrent run cannot overwrite user files.
+            raise ValueError(f"Downloaded archive failed validation: {problem}")
+        # A concurrent process may have created destination files during download.
         _require_empty_destination(root)
         if root.exists():
             root.rmdir()
         prepared.rename(root)
-    print(f"Prepared BCI-IV-2a data installed: {root}", flush=True)
     return root
-
-
-def prepare_demo_data(args):
-    """Resolve the demo data directory without changing the shared experiment CLI."""
-    if args.show_config:
-        return
-    if args.dataset != "bci_iv_2a":
-        if args.data_dir is None:
-            raise ValueError(
-                f"Automatic demo data download is available for BCI-IV-2a only. "
-                f"For {args.dataset}, prepare the dataset with python -m preprocessing.{args.dataset} "
-                "and supply --data-dir with the resulting directory."
-            )
-        return
-    splits = ("test",) if args.mode == "evaluate" else SPLITS
-    args.data_dir = ensure_bci_data(args.data_dir or Path("data") / "bci_iv_2a", splits=splits)

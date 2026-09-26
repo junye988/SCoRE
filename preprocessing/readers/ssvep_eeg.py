@@ -19,8 +19,10 @@ import numpy as np
 import scipy
 from scipy.signal import butter, resample_poly, sosfiltfilt
 
+from utils.io import read_json, sha256_file
 
-DEFAULT_DATA_DIR = Path(__file__).resolve().parent
+
+DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent
 SUBJECT_NAMES = [f"S{i:03d}" for i in range(1, 13)]
 FREQUENCIES = np.asarray([5.0, 7.5, 12.0, 15.0], dtype=np.float64)
 STAGES = ("baseline_onset", "cue_onset", "gaze_onset", "rest_onset")
@@ -35,14 +37,6 @@ WINDOW_SAMPLES = 400
 MAX_REST_JOIN_GAP_SECONDS = .100
 REST_LABEL = 4
 NUMERIC_TAL = re.compile(rb"([+-]\d+(?:\.\d+)?)(?:\x15[^\x14]*)?\x14\s*(\d+)\x14")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(8 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def read_edf(raw: bytes) -> tuple[np.ndarray, dict, list[dict]]:
@@ -179,8 +173,7 @@ def parse_ssvep_csv(raw: bytes, expected_subject: str | None = None) -> tuple[li
 def find_recordings(data_dir: Path) -> list[dict]:
     """Read the local manifest; only the advertised anonymous paths are accepted."""
     data_dir = Path(data_dir)
-    with (data_dir / "manifest.json").open(encoding="utf-8-sig") as stream:
-        manifest = json.load(stream)
+    manifest = read_json(data_dir / "manifest.json")
     if (manifest.get("dataset") != "SSVEP_dataset"
             or manifest.get("subject_count") != len(SUBJECT_NAMES)
             or manifest.get("trial_count") != 64 * len(SUBJECT_NAMES)

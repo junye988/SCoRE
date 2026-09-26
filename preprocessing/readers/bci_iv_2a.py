@@ -10,6 +10,8 @@ from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 
+from utils.io import read_json
+
 
 SOURCE_FS = 250.0
 TARGET_FS = 200.0
@@ -441,7 +443,7 @@ def _read_manifest(root: Path) -> dict:
     path = root / "manifest.json"
     if not path.is_file():
         raise FileNotFoundError(f"REVE cache manifest not found: {path}")
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest = read_json(path)
     if manifest.get("format") != CACHE_FORMAT:
         raise ValueError(f"Not a {CACHE_FORMAT} cache: {root}")
     return manifest

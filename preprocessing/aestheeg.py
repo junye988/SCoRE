@@ -7,7 +7,9 @@ import tempfile
 
 import numpy as np
 
-from .common import CacheWriter, SPLITS, alignment_pair, first_seen_groups, read_json, sha256
+from utils.io import read_json, sha256_file
+from .alignment import alignment_pair
+from .cache import CacheWriter, SPLITS, first_seen_groups
 
 CLASS_NAMES = ["landscape ugly", "landscape beautiful", "face ugly", "face beautiful"]
 FIXED_SPLIT = {
@@ -33,7 +35,7 @@ def from_cache(source, output):
         keys, groups = first_seen_groups(data["subject_index"][indices].tolist())
         pairs = np.stack([np.stack((data["A"][i], data["A_inv"][i])) for i in keys])
         writer.add_split(split, x, data["y"][indices], groups, pairs, indices=indices,
-                         source_hash=sha256(source / "metadata.npz"))
+                         source_hash=sha256_file(source / "metadata.npz"))
     return writer.finish()
 
 
@@ -97,7 +99,7 @@ def main(argv=None):
     if args.source_format == "subject-epochs":
         return from_subject_epochs(args.source, args.output)
     from types import SimpleNamespace
-    from ._aestheeg_raw import find_subject_dir, save_subject
+    from .readers.aestheeg import find_subject_dir, save_subject
     subjects_root = args.source / "subjects" if (args.source / "subjects").is_dir() else args.source
     with tempfile.TemporaryDirectory(prefix="score-aestheeg-raw-") as work:
         options = SimpleNamespace(out_dir=Path(work), l_freq=.5, h_freq=45., notch_freq=50.,
