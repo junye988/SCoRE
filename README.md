@@ -24,6 +24,8 @@ python demo.py --device cuda
 
 The demo automatically downloads the complete [prepared BCI-IV-2a cache](https://figshare.com/s/cc1e803b0838940a522a) (340 MB), verifies its SHA-256 checksum, and extracts it to `data/bci_iv_2a`. Later runs reuse the cache.
 
+If Figshare is inaccessible, try using a proxy or manually download the archive from the link above and extract its contents into `data/bci_iv_2a`. The `manifest.json` and `.npy` files should be directly inside that directory.
+
 Training and evaluation use [`configs/experiments/bci_iv_2a.yaml`](configs/experiments/bci_iv_2a.yaml), with checkpoints, predictions, and metrics written to `runs/bci_iv_2a`. Use `--device cpu` to run without CUDA.
 
 ```bash
