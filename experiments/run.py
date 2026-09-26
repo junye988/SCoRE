@@ -1,4 +1,4 @@
-"""Run one configured EEG experiment, including all ensemble members."""
+"""Train and evaluate SCoRE on a configured EEG dataset."""
 
 from __future__ import annotations
 
@@ -200,7 +200,6 @@ def run(args):
         metrics = classification_metrics(labels, logits)
         member_results.append(dict(name=member_name, seed=int(member["seed"]),
                                    checkpoint_sha256=checkpoint_hash(path), metrics=metrics))
-        print(json.dumps({"member": member_name, "test_balanced_accuracy": metrics["balanced_accuracy"]}), flush=True)
         del model
         if device.type == "cuda":
             torch.cuda.empty_cache()

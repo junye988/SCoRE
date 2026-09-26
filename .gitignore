@@ -17,4 +17,5 @@ checkpoints/
 *.gdf
 *.mat
 *.lmdb
+*.zip
 *.log

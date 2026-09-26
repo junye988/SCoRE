@@ -25,16 +25,17 @@ python -m pip install -r requirements.txt
 
 ## BCI-IV-2a demo
 
-Prepare the official GDF recordings and corresponding MAT labels:
+Run the demo with:
 
 ```bash
-python -m preprocessing.bci_iv_2a \
-  --source /path/to/BCICIV_2a_gdf \
-  --labels /path/to/true_labels \
-  --output data/bci_iv_2a
+python demo.py --device cuda
 ```
 
-Run the configured experiment:
+If `data/bci_iv_2a` is absent, the demo downloads the complete [prepared BCI-IV-2a archive from Figshare](https://figshare.com/s/cc1e803b0838940a522a) (340 MB), verifies its SHA-256 checksum, and extracts it automatically. Later runs reuse this local cache. BCI-IV-2a is the default demo because its prepared cache is compact; other datasets can be larger and should be prepared separately using the modules below.
+
+The command trains and evaluates SCoRE using `experiments/configs/bci_iv_2a.json`. Training progress and final metrics are printed to the console. Architecture, optimization, and prediction settings are defined in the configuration.
+
+To choose different data and output locations:
 
 ```bash
 python demo.py \
@@ -43,12 +44,25 @@ python demo.py \
   --device cuda
 ```
 
-This command trains the configured ensemble members and evaluates their combined predictions. The model, optimization settings, and ensemble definition are in `experiments/configs/bci_iv_2a.json`.
-
 ```bash
 python demo.py --show-config
 python demo.py --help
 ```
+
+The prepared cache is derived from [BCI Competition IV dataset 2a](https://www.bbci.de/competition/iv/). Alternatively, prepare it from the official GDF recordings and corresponding MAT labels:
+
+```bash
+python -m preprocessing.bci_iv_2a \
+  --source /path/to/BCICIV_2a_gdf \
+  --labels /path/to/true_labels \
+  --output data/bci_iv_2a
+```
+
+## Data availability
+
+The six public datasets are available from their official sources: [BCI-IV-2a](https://www.bbci.de/competition/iv/), [PhysioNet-MI](https://physionet.org/content/eegmmidb/1.0.0/), [ISRUC](https://sleeptight.isr.uc.pt/?page_id=48), [HMC](https://physionet.org/content/hmc-sleep-staging/1.1/), [MAT](https://physionet.org/content/eegmat/1.0.0/), and [Mumtaz](https://figshare.com/articles/dataset/EEG_Data_New/4244171).
+
+The newly collected HandMI, SSVEP-EEG, and AesthEEG datasets are available on [Figshare](https://figshare.com/s/07498f285053b3a8229b). See [the preprocessing reference](preprocessing/README.md) for package layouts and preparation commands.
 
 ## Dataset preprocessing
 
@@ -67,8 +81,6 @@ See [the preprocessing reference](preprocessing/README.md) for source layouts, d
 | HandMI | `preprocessing.handmi` | Anonymous EEG recordings and event files | 32 × 400, 200 Hz |
 | SSVEP-EEG | `preprocessing.ssvep_eeg` | Anonymous EEG recordings and event files | 32 × 400, 200 Hz |
 | AesthEEG | `preprocessing.aestheeg` | Anonymous recordings or subject epochs | 32 × 751, 250 Hz |
-
-Download links for HandMI, SSVEP-EEG, and AesthEEG will be added upon data release. Their input package formats are described in the preprocessing reference.
 
 For example:
 

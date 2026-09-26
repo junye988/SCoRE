@@ -2,7 +2,15 @@
 
 Run these commands from the repository root. Input paths refer to locally downloaded datasets. Output directories must be new. Each command writes a portable cache for `experiments` and `demo.py`.
 
+## Data availability
+
 Official download pages are available for [BCI-IV-2a](https://www.bbci.de/competition/iv/) (GDF recordings and evaluation labels), [PhysioNet-MI](https://physionet.org/content/eegmmidb/1.0.0/), [ISRUC](https://sleeptight.isr.uc.pt/?page_id=48) (raw Group I recordings), [HMC](https://physionet.org/content/hmc-sleep-staging/1.1/), [MAT](https://physionet.org/content/eegmat/1.0.0/) and [Mumtaz](https://figshare.com/articles/dataset/EEG_Data_New/4244171).
+
+The newly collected HandMI, SSVEP-EEG and AesthEEG datasets are available on [Figshare](https://figshare.com/s/07498f285053b3a8229b). Their package layouts are documented below.
+
+For a quick start, `python demo.py --device cuda` downloads the complete [prepared BCI-IV-2a archive from Figshare](https://figshare.com/s/cc1e803b0838940a522a) (340 MB) when `data/bci_iv_2a` is absent, verifies its checksum, and extracts it. Later runs reuse the cache. BCI-IV-2a provides a compact demo; prepare the other datasets separately, as their caches can be larger. The raw BCI-IV-2a preparation command below remains an alternative.
+
+## Preparation modules
 
 | Module | Input | Model input | Alignment in the released configuration |
 |---|---|---|---|
