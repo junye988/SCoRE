@@ -1,4 +1,4 @@
-"""Batch placement and group-index adapters for model inference."""
+"""Prepare batch tensors and call the model with matching alignment operators."""
 
 from weakref import WeakKeyDictionary
 

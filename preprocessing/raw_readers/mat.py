@@ -4,7 +4,7 @@ import re
 import numpy as np
 
 
-def read_records(source):
+def read_partitioned_trials(source):
     import mne
     names = ["EEG " + name for name in ["Fp1", "Fp2", "F3", "F4", "F7", "F8", "T3", "T4", "C3", "C4", "T5", "T6", "P3", "P4", "O1", "O2", "Fz", "Cz", "Pz", "A2-A1"]]
     partitions = {"train": [], "val": [], "test": []}

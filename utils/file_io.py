@@ -1,4 +1,4 @@
-"""JSON serialization and file checksums."""
+"""Read and write JSON files and compute file checksums."""
 
 from __future__ import annotations
 

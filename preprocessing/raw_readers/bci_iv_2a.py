@@ -10,7 +10,7 @@ from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 
-from utils.io import read_json
+from utils.file_io import read_json
 
 
 SOURCE_FS = 250.0

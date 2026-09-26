@@ -14,7 +14,7 @@ import numpy as np
 import scipy
 from scipy.signal import butter, resample_poly, sosfiltfilt
 
-from utils.io import read_json, sha256_file
+from utils.file_io import read_json, sha256_file
 
 
 STAGES = ("baseline_onset", "cue_onset", "mi_onset", "rest_onset")
@@ -228,7 +228,7 @@ def find_recordings(data_dir: Path) -> list[dict]:
     return recordings
 
 
-def build_cache(data_dir: Path, output: Path, overwrite: bool = False) -> dict:
+def build_window_archive(data_dir: Path, output: Path, overwrite: bool = False) -> dict:
     outputs = [output / "mi_windows.npz", output / "metadata.json"]
     if any(p.exists() for p in outputs) and not overwrite:
         raise FileExistsError("Output already exists; choose another --output-dir or explicitly pass --overwrite")

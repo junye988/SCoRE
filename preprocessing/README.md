@@ -2,7 +2,7 @@
 
 Run these commands from the repository root. Input paths refer to locally downloaded datasets. Output directories must be new. Each command writes a portable cache for `experiments` and `demo.py`.
 
-The public dataset modules provide the preparation CLI and partition conversion. Dataset-specific recording readers live in `readers/`; `alignment.py` contains the shared frozen alignment and electrode transforms, and `cache.py` reads and writes the portable cache. `acquisition.py` resolves prepared-data locations using the sources in `configs/data_sources.yaml` at the repository root.
+The public dataset modules provide the preparation CLI and partition conversion. Dataset-specific recording readers live in `raw_readers/`. `alignment.py` contains the shared frozen alignment and electrode transforms, and `dataset_cache.py` reads and writes the portable dataset cache. `recording_import.py` imports recording partitions and experiment caches for ISRUC, HMC, MAT, and Mumtaz; `window_import.py` imports HandMI and SSVEP-EEG window archives. `dataset_download.py` locates or downloads prepared datasets using the sources in `configs/data_sources.yaml` at the repository root.
 
 ## Data availability
 

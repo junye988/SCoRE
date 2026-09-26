@@ -3,11 +3,12 @@
 import numpy as np
 import torch
 
-from .batches import batch_to_device, forward_batch
+from .batch_processing import batch_to_device, forward_batch
 
 
 @torch.inference_mode()
-def predict(model, loader, device, *, amp=False, diagnostics=False):
+def predict_dataset(model, loader, device, *, amp=False, diagnostics=False):
+    """Return labels and logits, or route-logit differences for initialization."""
     model.eval()
     outputs = []
     labels = []

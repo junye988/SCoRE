@@ -7,9 +7,9 @@ import tempfile
 
 import numpy as np
 
-from utils.io import read_json, sha256_file
+from utils.file_io import read_json, sha256_file
 from .alignment import alignment_pair
-from .cache import CacheWriter, SPLITS, first_seen_groups
+from .dataset_cache import DatasetCacheWriter, SPLITS, encode_groups_in_order
 
 CLASS_NAMES = ["landscape ugly", "landscape beautiful", "face ugly", "face beautiful"]
 FIXED_SPLIT = {
@@ -19,7 +19,7 @@ FIXED_SPLIT = {
 }
 
 
-def from_cache(source, output):
+def import_experiment_cache(source, output):
     source = Path(source)
     manifest = read_json(source / "cache_manifest.json")
     if manifest.get("format") != "fsaes_reference_four_class_subject_ea_float64_v1":
@@ -27,19 +27,19 @@ def from_cache(source, output):
     x = np.load(source / "aligned_windows.npy", mmap_mode="r", allow_pickle=False)
     with np.load(source / "metadata.npz", allow_pickle=False) as archive:
         data = {key: archive[key] for key in ("y", "subject_index", "split", "A", "A_inv", "channels", "mirror_permutation")}
-    writer = CacheWriter(output, "AesthEEG", data["channels"].tolist(), 250, CLASS_NAMES, samples_aligned=True,
+    writer = DatasetCacheWriter(output, "AesthEEG", data["channels"].tolist(), 250, CLASS_NAMES, samples_aligned=True,
                          permutation=data["mirror_permutation"], preprocessing={"epoch_seconds": [-.5, 2.5], "alignment_unit": "subject",
                                                                                  "eigenvalue_floor_relative": 1e-12})
     for code, split in enumerate(SPLITS):
         indices = np.flatnonzero(data["split"] == code)
-        keys, groups = first_seen_groups(data["subject_index"][indices].tolist())
+        keys, groups = encode_groups_in_order(data["subject_index"][indices].tolist())
         pairs = np.stack([np.stack((data["A"][i], data["A_inv"][i])) for i in keys])
         writer.add_split(split, x, data["y"][indices], groups, pairs, indices=indices,
                          source_hash=sha256_file(source / "metadata.npz"))
     return writer.finish()
 
 
-def from_subject_epochs(source, output):
+def import_subject_epochs(source, output):
     source = Path(source)
     root = source / "subjects" if (source / "subjects").is_dir() else source
     records, channels = {}, None
@@ -60,7 +60,7 @@ def from_subject_epochs(source, output):
                 raise ValueError("Channel order differs across AesthEEG subjects")
             keep = np.isin(category, ("face", "landscape"))
             records[subject] = (path, keep, binary[keep] + 2 * (category[keep] == "face"))
-    writer = CacheWriter(output, "AesthEEG", channels, 250, CLASS_NAMES, samples_aligned=True,
+    writer = DatasetCacheWriter(output, "AesthEEG", channels, 250, CLASS_NAMES, samples_aligned=True,
                          preprocessing={"epoch_seconds": [-.5, 2.5], "alignment_unit": "subject",
                                         "alignment_fit": "all released subject epochs before category eligibility", "eigenvalue_floor_relative": 1e-12})
     with tempfile.TemporaryDirectory(prefix="score-aestheeg-") as work:
@@ -95,11 +95,11 @@ def main(argv=None):
     parser.add_argument("--source-format", choices=("raw", "subject-epochs", "experiment-cache"), default="raw")
     args = parser.parse_args(argv)
     if args.source_format == "experiment-cache":
-        return from_cache(args.source, args.output)
+        return import_experiment_cache(args.source, args.output)
     if args.source_format == "subject-epochs":
-        return from_subject_epochs(args.source, args.output)
+        return import_subject_epochs(args.source, args.output)
     from types import SimpleNamespace
-    from .readers.aestheeg import find_subject_dir, save_subject
+    from .raw_readers.aestheeg import find_subject_dir, prepare_subject_epochs
     subjects_root = args.source / "subjects" if (args.source / "subjects").is_dir() else args.source
     with tempfile.TemporaryDirectory(prefix="score-aestheeg-raw-") as work:
         options = SimpleNamespace(out_dir=Path(work), l_freq=.5, h_freq=45., notch_freq=50.,
@@ -109,10 +109,10 @@ def main(argv=None):
             for subject in FIXED_SPLIT[split]:
                 exact = subjects_root / subject
                 directory = exact if exact.is_dir() else find_subject_dir(subjects_root, subject)
-                summary, _ = save_subject(subject, split, directory, options)
+                summary, _ = prepare_subject_epochs(subject, split, directory, options)
                 if summary.status != "ok":
                     raise RuntimeError(f"AesthEEG subject {subject}: {summary.reason}")
-        return from_subject_epochs(Path(work), args.output)
+        return import_subject_epochs(Path(work), args.output)
 
 
 if __name__ == "__main__":

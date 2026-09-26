@@ -7,7 +7,7 @@ import random
 import torch
 
 
-def augment(x, pair, settings):
+def augment_batch(x, pair, settings):
     gain = float(settings.get("gain_log_std", 0))
     noise = float(settings.get("noise_rms_fraction", 0))
     drop = float(settings.get("channel_drop_probability", 0))

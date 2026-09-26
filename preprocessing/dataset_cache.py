@@ -1,18 +1,18 @@
-"""Portable memory-mapped EEG caches, grouped records, and serialization."""
+"""Read and write prepared EEG arrays and their alignment metadata."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import numpy as np
 
-from utils.io import read_json, write_json
+from utils.file_io import read_json, write_json
 from .alignment import mirror_permutation
 
 CACHE_FORMAT = "score_eeg_v1"
 SPLITS = ("train", "val", "test")
 
 
-class PreparedCache:
+class PreparedDatasetSplit:
     """Read prepared split arrays and apply their frozen alignment operators."""
 
     def __init__(self, root, split):
@@ -49,7 +49,7 @@ class PreparedCache:
         }
 
 
-def first_seen_groups(values):
+def encode_groups_in_order(values):
     lookup, keys, indices = {}, [], []
     for value in values:
         key = tuple(value) if isinstance(value, (list, np.ndarray)) else value
@@ -60,7 +60,7 @@ def first_seen_groups(values):
     return keys, np.asarray(indices, dtype=np.int64)
 
 
-class CacheWriter:
+class DatasetCacheWriter:
     """Write split arrays with explicit alignment state and source hashes."""
 
     def __init__(self, output, dataset, channels, sample_rate, class_names, *, samples_aligned,

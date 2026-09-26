@@ -1,20 +1,20 @@
 """Prepare MAT from its preprocessed 100-Hz LMDB or the experiment cache."""
 import pickle
 import numpy as np
-from .clinical import DATASETS, from_cache, from_records, parser_for
+from .recording_import import DATASETS, import_experiment_cache, import_record_partitions, create_preprocessing_parser
 
 
-def from_raw(source, output, alignment):
-    from .readers.mat import read_records
-    return from_records("mat", read_records(source), output, lambda value: value, alignment=alignment)
+def build_from_raw(source, output, alignment):
+    from .raw_readers.mat import read_partitioned_trials
+    return import_record_partitions("mat", read_partitioned_trials(source), output, lambda value: value, alignment=alignment)
 
 
 def main(argv=None):
-    args = parser_for("mat", __doc__, source_formats=("raw", "released", "experiment-cache")).parse_args(argv)
+    args = create_preprocessing_parser("mat", __doc__, source_formats=("raw", "released", "experiment-cache")).parse_args(argv)
     if args.source_format == "raw":
-        return from_raw(args.source, args.output, args.alignment)
+        return build_from_raw(args.source, args.output, args.alignment)
     if args.source_format == "experiment-cache":
-        return from_cache("mat", args.source, args.output, alignment=args.alignment, ea_source=args.ea_source)
+        return import_experiment_cache("mat", args.source, args.output, alignment=args.alignment, ea_source=args.ea_source)
     import lmdb
     db = lmdb.open(str(args.source), readonly=True, lock=False, readahead=False, subdir=args.source.is_dir())
     try:
@@ -39,7 +39,7 @@ def main(argv=None):
                     raise ValueError("MAT scalp channel order differs from the experiment")
                 label = np.asarray(data.get("label", data.get("y"))).reshape(-1)[0]
                 return x[keep], int(label), int(data["subject_id"])
-            return from_records("mat", partitions, args.output, load, alignment=args.alignment)
+            return import_record_partitions("mat", partitions, args.output, load, alignment=args.alignment)
     finally:
         db.close()
 

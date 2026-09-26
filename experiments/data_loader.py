@@ -4,15 +4,15 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
-from preprocessing.cache import PreparedCache
-from utils.reproducibility import worker_seed
+from preprocessing.dataset_cache import PreparedDatasetSplit
+from utils.random_seed import seed_dataloader_worker
 
 
-class EEGDataset(Dataset):
+class CachedEEGDataset(Dataset):
     """Convert a prepared cache's samples to training tensors."""
 
     def __init__(self, root, split):
-        self.cache = PreparedCache(root, split)
+        self.cache = PreparedDatasetSplit(root, split)
         self.root = self.cache.root
         self.split = self.cache.split
         self.manifest = self.cache.manifest
@@ -31,7 +31,7 @@ class EEGDataset(Dataset):
         return item
 
 
-class ArraySplitSampler:
+class ArraySplitBatchSampler:
     """Balanced-size minibatches from a NumPy permutation of training indices."""
 
     def __init__(self, size, batch_size):
@@ -46,14 +46,14 @@ class ArraySplitSampler:
         return max(1, int(np.ceil(self.size / self.batch_size)))
 
 
-def make_loader(dataset, settings, seed, *, training=False):
+def build_dataloader(dataset, settings, seed, *, training=False):
     batch_size = int(settings.get("batch_size", 64) if training else
                      settings.get("eval_batch_size", settings.get("batch_size", 64)))
     common = dict(num_workers=int(settings.get("num_workers", 0)),
-                  pin_memory=torch.cuda.is_available(), worker_init_fn=worker_seed)
+                  pin_memory=torch.cuda.is_available(), worker_init_fn=seed_dataloader_worker)
     generator = torch.Generator().manual_seed(seed)
     if settings.get("batch_order") == "numpy_array_split":
-        batches = ArraySplitSampler(len(dataset), batch_size) if training else [
+        batches = ArraySplitBatchSampler(len(dataset), batch_size) if training else [
             part.tolist() for part in np.array_split(
                 np.arange(len(dataset)), max(1, int(np.ceil(len(dataset) / batch_size))),
             )

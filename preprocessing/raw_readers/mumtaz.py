@@ -21,7 +21,7 @@ def split_filenames(source):
             "test": healthy[48:] + depressed[52:]}
 
 
-def prepare_recording(path):
+def read_epoch_windows(path):
     import mne
     raw = mne.io.read_raw_edf(str(path), preload=True, verbose="ERROR")
     try:

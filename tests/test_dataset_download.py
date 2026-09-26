@@ -13,9 +13,9 @@ import zipfile
 import numpy as np
 import yaml
 
-from preprocessing import acquisition
-from preprocessing.cache import PreparedCache, SPLITS
-from utils import download
+from preprocessing import dataset_download
+from preprocessing.dataset_cache import PreparedDatasetSplit, SPLITS
+from utils import download_archive
 
 
 def cache_files(splits=SPLITS, *, aligned=True):
@@ -53,7 +53,7 @@ class DownloadResponse(io.BytesIO):
         return self.url
 
 
-class AcquisitionTests(unittest.TestCase):
+class DatasetDownloadTests(unittest.TestCase):
     def setUp(self):
         self.work = tempfile.TemporaryDirectory()
         self.addCleanup(self.work.cleanup)
@@ -77,17 +77,17 @@ class AcquisitionTests(unittest.TestCase):
 
     def test_existing_cache_needs_neither_source_config_nor_network(self):
         self.write_cache()
-        with patch.object(download, "urlopen", side_effect=AssertionError("network used")):
-            result = acquisition.ensure_bci_data(self.cache, source_config=self.config)
+        with patch.object(download_archive, "urlopen", side_effect=AssertionError("network used")):
+            result = dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
         self.assertEqual(result, self.cache)
 
     def test_existing_cache_accepts_a_utf8_bom_manifest(self):
         self.write_cache()
         manifest = self.cache / "manifest.json"
         manifest.write_bytes(b"\xef\xbb\xbf" + manifest.read_bytes())
-        with patch.object(download, "urlopen", side_effect=AssertionError("network used")):
-            self.assertEqual(acquisition.ensure_bci_data(self.cache), self.cache)
-        self.assertEqual(len(PreparedCache(self.cache, "test")), 2)
+        with patch.object(download_archive, "urlopen", side_effect=AssertionError("network used")):
+            self.assertEqual(dataset_download.ensure_bci_iv_2a_data(self.cache), self.cache)
+        self.assertEqual(len(PreparedDatasetSplit(self.cache, "test")), 2)
 
     def test_missing_cache_downloads_checks_hash_and_installs(self):
         files = cache_files()
@@ -96,8 +96,8 @@ class AcquisitionTests(unittest.TestCase):
                 target = self.root / ("flat" if not prefix else "nested")
                 payload = make_archive(files, prefix)
                 self.source(payload)
-                with patch.object(download, "urlopen", return_value=DownloadResponse(payload)) as request:
-                    acquisition.ensure_bci_data(target, source_config=self.config)
+                with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload)) as request:
+                    dataset_download.ensure_bci_iv_2a_data(target, source_config=self.config)
                 request.assert_called_once()
                 self.assertEqual(request.call_args.args[0].full_url,
                                  "https://downloads.example.test/data.zip?private_link=fixture")
@@ -107,9 +107,9 @@ class AcquisitionTests(unittest.TestCase):
     def test_hash_mismatch_does_not_install_and_cleans_staging(self):
         payload = make_archive(cache_files())
         self.source(payload, sha256="0" * 64)
-        with patch.object(download, "urlopen", return_value=DownloadResponse(payload)):
+        with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload)):
             with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
-                acquisition.ensure_bci_data(self.cache, source_config=self.config)
+                dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
         self.assertFalse(self.cache.exists())
         self.assert_no_staging()
 
@@ -120,9 +120,9 @@ class AcquisitionTests(unittest.TestCase):
                 files[name] = b"unsafe"
                 payload = make_archive(files)
                 self.source(payload)
-                with patch.object(download, "urlopen", return_value=DownloadResponse(payload)):
+                with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload)):
                     with self.assertRaisesRegex(ValueError, "Unsafe ZIP member"):
-                        acquisition.ensure_bci_data(self.cache, source_config=self.config)
+                        dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
                 self.assertFalse(self.cache.exists())
                 self.assertFalse((self.root / "escaped.txt").exists())
                 self.assert_no_staging()
@@ -133,9 +133,9 @@ class AcquisitionTests(unittest.TestCase):
             link.external_attr = (stat.S_IFLNK | 0o777) << 16
             archive.writestr(link, "../escaped.txt")
         self.source(payload.getvalue())
-        with patch.object(download, "urlopen", return_value=DownloadResponse(payload.getvalue())):
+        with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload.getvalue())):
             with self.assertRaisesRegex(ValueError, "Unsafe ZIP member"):
-                acquisition.ensure_bci_data(self.cache, source_config=self.config)
+                dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
         self.assertFalse(self.cache.exists())
         self.assert_no_staging()
 
@@ -144,9 +144,9 @@ class AcquisitionTests(unittest.TestCase):
         self.source(payload)
         for response in (DownloadResponse(payload[:-1]), DownloadResponse(payload, "http://example.test/data.zip")):
             with self.subTest(url=response.geturl(), length=len(response.getvalue())):
-                with patch.object(download, "urlopen", return_value=response):
+                with patch.object(download_archive, "urlopen", return_value=response):
                     with self.assertRaises(ValueError):
-                        acquisition.ensure_bci_data(self.cache, source_config=self.config)
+                        dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
                 self.assertFalse(self.cache.exists())
                 self.assert_no_staging()
 
@@ -154,29 +154,29 @@ class AcquisitionTests(unittest.TestCase):
         self.cache.mkdir()
         original = self.cache / "notes.txt"
         original.write_text("keep this", encoding="utf-8")
-        with patch.object(download, "urlopen", side_effect=AssertionError("network used")):
+        with patch.object(download_archive, "urlopen", side_effect=AssertionError("network used")):
             with self.assertRaisesRegex(FileExistsError, "Choose an empty --data-dir"):
-                acquisition.ensure_bci_data(self.cache, source_config=self.config)
+                dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
         self.assertEqual(original.read_text(encoding="utf-8"), "keep this")
 
     def test_evaluate_reuses_test_split_cache(self):
         self.write_cache(splits=("test",))
-        with patch.object(download, "urlopen", side_effect=AssertionError("network used")):
-            result = acquisition.resolve_data_dir("bci_iv_2a", self.cache, splits=("test",))
+        with patch.object(download_archive, "urlopen", side_effect=AssertionError("network used")):
+            result = dataset_download.resolve_dataset_directory("bci_iv_2a", self.cache, splits=("test",))
         self.assertEqual(result, self.cache)
 
     def test_other_datasets_require_explicit_data_directory(self):
-        with patch.object(acquisition, "ensure_bci_data", side_effect=AssertionError("installer called")):
+        with patch.object(dataset_download, "ensure_bci_iv_2a_data", side_effect=AssertionError("installer called")):
             with self.assertRaisesRegex(ValueError, "supply --data-dir"):
-                acquisition.resolve_data_dir("hmc")
-            self.assertEqual(acquisition.resolve_data_dir("hmc", self.root / "hmc"), self.root / "hmc")
+                dataset_download.resolve_dataset_directory("hmc")
+            self.assertEqual(dataset_download.resolve_dataset_directory("hmc", self.root / "hmc"), self.root / "hmc")
 
     def test_download_requires_complete_cache_even_when_only_test_is_requested(self):
         payload = make_archive(cache_files(splits=("test",)))
         self.source(payload)
-        with patch.object(download, "urlopen", return_value=DownloadResponse(payload)):
+        with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload)):
             with self.assertRaisesRegex(ValueError, "missing or empty train_samples"):
-                acquisition.ensure_bci_data(self.cache, splits=("test",), source_config=self.config)
+                dataset_download.ensure_bci_iv_2a_data(self.cache, splits=("test",), source_config=self.config)
         self.assertFalse(self.cache.exists())
         self.assert_no_staging()
 
@@ -187,9 +187,9 @@ class AcquisitionTests(unittest.TestCase):
         files["manifest.json"] = json.dumps(manifest).encode()
         payload = make_archive(files)
         self.source(payload)
-        with patch.object(download, "urlopen", return_value=DownloadResponse(payload)):
+        with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload)):
             with self.assertRaisesRegex(ValueError, "does not describe BCI-IV-2a"):
-                acquisition.ensure_bci_data(self.cache, source_config=self.config)
+                dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
         self.assertFalse(self.cache.exists())
         self.assert_no_staging()
 
@@ -200,18 +200,18 @@ class AcquisitionTests(unittest.TestCase):
             self.cache.mkdir()
             (self.cache / "notes.txt").write_text("keep this", encoding="utf-8")
             return DownloadResponse(payload)
-        with patch.object(download, "urlopen", side_effect=response):
+        with patch.object(download_archive, "urlopen", side_effect=response):
             with self.assertRaises(FileExistsError):
-                acquisition.ensure_bci_data(self.cache, source_config=self.config)
+                dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
         self.assertEqual((self.cache / "notes.txt").read_text(encoding="utf-8"), "keep this")
         self.assert_no_staging()
 
     def test_installed_cache_reads_alignment_and_detaches_returned_arrays(self):
         payload = make_archive(cache_files(aligned=False))
         self.source(payload)
-        with patch.object(download, "urlopen", return_value=DownloadResponse(payload)):
-            acquisition.ensure_bci_data(self.cache, source_config=self.config)
-        prepared = PreparedCache(self.cache, "train")
+        with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload)):
+            dataset_download.ensure_bci_iv_2a_data(self.cache, source_config=self.config)
+        prepared = PreparedDatasetSplit(self.cache, "train")
         self.assertEqual(len(prepared), 2)
         record = prepared.read(0)
         np.testing.assert_array_equal(record["sample"], [[0., 2., 4.], [1.5, 2., 2.5]])
@@ -228,8 +228,8 @@ class AcquisitionTests(unittest.TestCase):
         self.cache.mkdir()
         for name, value in files.items():
             (self.cache / name).write_bytes(value)
-        self.assertIsNone(acquisition.cache_problem(self.cache, splits=("test",)))
-        record = PreparedCache(self.cache, "test").read(1)
+        self.assertIsNone(dataset_download.check_bci_iv_2a_files(self.cache, splits=("test",)))
+        record = PreparedDatasetSplit(self.cache, "test").read(1)
         self.assertEqual(record["sample"].dtype, np.float32)
         np.testing.assert_array_equal(record["sample"], [[6., 7., 8.], [9., 10., 11.]])
 
@@ -243,8 +243,8 @@ class ArchiveTests(unittest.TestCase):
             return None if (path / "hello.txt").is_file() else "hello.txt is missing"
         with tempfile.TemporaryDirectory() as work:
             target = Path(work) / "installed"
-            with patch.object(download, "urlopen", return_value=DownloadResponse(payload)):
-                self.assertEqual(download.install_archive(source, target, validate), target)
+            with patch.object(download_archive, "urlopen", return_value=DownloadResponse(payload)):
+                self.assertEqual(download_archive.download_and_extract_archive(source, target, validate), target)
             self.assertEqual((target / "hello.txt").read_bytes(), b"hello")
 
     def test_invalid_source_metadata_is_rejected_before_network(self):
@@ -253,9 +253,9 @@ class ArchiveTests(unittest.TestCase):
             with self.subTest(overrides=overrides), tempfile.TemporaryDirectory() as work:
                 source = {"url": "https://example.test/data.zip", "sha256": "0" * 64, "size_bytes": 10}
                 source.update(overrides)
-                with patch.object(download, "urlopen", side_effect=AssertionError("network used")):
+                with patch.object(download_archive, "urlopen", side_effect=AssertionError("network used")):
                     with self.assertRaises(ValueError):
-                        download.install_archive(source, Path(work) / "installed", lambda path: None)
+                        download_archive.download_and_extract_archive(source, Path(work) / "installed", lambda path: None)
 
 
 if __name__ == "__main__":

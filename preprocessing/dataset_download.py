@@ -1,19 +1,22 @@
-"""Locate prepared EEG caches and acquire the configured BCI-IV-2a release."""
+"""Check prepared datasets and download BCI-IV-2a when missing."""
 from __future__ import annotations
 
 from pathlib import Path
 
-from utils.config import load_yaml
-from utils.download import install_archive
-from utils.io import read_json
-from .cache import CACHE_FORMAT, SPLITS
+from utils.yaml_config import load_yaml
+from utils.download_archive import download_and_extract_archive
+from utils.file_io import read_json
+from .dataset_cache import CACHE_FORMAT, SPLITS
 
 
-SOURCE_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "data_sources.yaml"
+DATA_SOURCES_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "data_sources.yaml"
 
 
-def cache_problem(root, splits=SPLITS):
-    """Return a BCI cache presence/schema error; arrays are checked when read."""
+def check_bci_iv_2a_files(root, splits=SPLITS):
+    """Return None for valid BCI-IV-2a files, or a presence/schema error string.
+
+    Array contents are validated when the prepared split is read.
+    """
     root = Path(root)
     try:
         manifest = read_json(root / "manifest.json")
@@ -38,7 +41,7 @@ def cache_problem(root, splits=SPLITS):
 
 def _require_empty_destination(root):
     if root.is_symlink() or (root.exists() and (not root.is_dir() or any(root.iterdir()))):
-        problem = cache_problem(root)
+        problem = check_bci_iv_2a_files(root)
         raise FileExistsError(
             f"Cannot install BCI-IV-2a into {root}: {problem or 'destination is occupied'}. "
             "Choose an empty --data-dir or repair the existing prepared cache. "
@@ -46,25 +49,25 @@ def _require_empty_destination(root):
         )
 
 
-def ensure_bci_data(root, *, splits=SPLITS, source_config=SOURCE_CONFIG):
-    """Reuse a prepared cache or atomically install the complete verified release."""
+def ensure_bci_iv_2a_data(root, *, splits=SPLITS, source_config=DATA_SOURCES_CONFIG):
+    """Use existing BCI-IV-2a data or download and install it."""
     root = Path(root).absolute()
-    problem = cache_problem(root, splits)
+    problem = check_bci_iv_2a_files(root, splits)
     if problem is None:
         print(f"Using prepared BCI-IV-2a data: {root}", flush=True)
         return root
     _require_empty_destination(root)
     source = load_yaml(source_config)["bci_iv_2a"]
-    install_archive(source, root, cache_problem)
+    download_and_extract_archive(source, root, check_bci_iv_2a_files)
     print(f"Prepared BCI-IV-2a data installed: {root}", flush=True)
     return root
 
 
-def resolve_data_dir(dataset, data_dir=None, *, splits=SPLITS, source_config=SOURCE_CONFIG):
-    """Resolve a prepared-data location using the available acquisition policy."""
+def resolve_dataset_directory(dataset, data_dir=None, *, splits=SPLITS, source_config=DATA_SOURCES_CONFIG):
+    """Return the dataset directory, downloading BCI-IV-2a when needed."""
     if dataset == "bci_iv_2a":
-        return ensure_bci_data(data_dir or Path("data") / "bci_iv_2a", splits=splits,
-                               source_config=source_config)
+        return ensure_bci_iv_2a_data(data_dir or Path("data") / "bci_iv_2a", splits=splits,
+                                   source_config=source_config)
     if data_dir is None:
         raise ValueError(
             "Automatic demo data download is available for BCI-IV-2a only. "

@@ -204,7 +204,7 @@ def event_level_trials(trials: pd.DataFrame, event_scores: list[int | None], lab
     return out
 
 
-def save_subject(
+def prepare_subject_epochs(
     subject: str,
     split_name: str,
     subject_dir: Path,

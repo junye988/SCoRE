@@ -7,11 +7,11 @@ import tempfile
 
 import numpy as np
 
-from utils.io import read_json, sha256_file
-from .cache import CacheWriter, SPLITS, first_seen_groups
+from utils.file_io import read_json, sha256_file
+from .dataset_cache import DatasetCacheWriter, SPLITS, encode_groups_in_order
 
 
-def from_cache(source, output):
+def import_experiment_cache(source, output):
     source = Path(source)
     metadata = read_json(source / "manifest.json")
     if metadata.get("format") != "bciciv2a_reve_paper_v1":
@@ -23,7 +23,7 @@ def from_cache(source, output):
     for subject, session, operator in zip(subjects, sessions, operators):
         a = np.asarray(operator, dtype=np.float64)
         lookup[(int(subject), int(session))] = np.stack((a, np.linalg.inv(a)))
-    writer = CacheWriter(output, "BCI-IV-2a", metadata["channels"], 200,
+    writer = DatasetCacheWriter(output, "BCI-IV-2a", metadata["channels"], 200,
                          ["left hand", "right hand", "feet", "tongue"], samples_aligned=True,
                          preprocessing={"epoch_seconds_from_trial_start": [2, 6], "bandpass_hz": [.5, 99.5],
                                         "filter": "Butterworth order 5, zero phase", "alignment_unit": "subject/session"})
@@ -32,7 +32,7 @@ def from_cache(source, output):
         y = np.load(source / f"{split}_labels.npy")
         s = np.load(source / f"{split}_subjects.npy")
         r = np.load(source / f"{split}_sessions.npy")
-        keys, groups = first_seen_groups(list(zip(s.tolist(), r.tolist())))
+        keys, groups = encode_groups_in_order(list(zip(s.tolist(), r.tolist())))
         pairs = np.stack([lookup[key] for key in keys])
         writer.add_split(split, x, y, groups, pairs, source_hash=sha256_file(source / f"{split}_samples.npy"))
     return writer.finish()
@@ -46,14 +46,14 @@ def main(argv=None):
     parser.add_argument("--labels", type=Path, help="Directory containing A01T.mat through A09E.mat")
     args = parser.parse_args(argv)
     if args.source_format == "experiment-cache":
-        return from_cache(args.source, args.output)
+        return import_experiment_cache(args.source, args.output)
     if args.labels is None:
         parser.error("--labels is required for official GDF input")
-    from .readers.bci_iv_2a import build_reve_cache
+    from .raw_readers.bci_iv_2a import build_reve_cache
     with tempfile.TemporaryDirectory(prefix="score-bci-") as work:
         cache = Path(work) / "cache"
         build_reve_cache(args.source, args.labels, cache)
-        return from_cache(cache, args.output)
+        return import_experiment_cache(cache, args.output)
 
 
 if __name__ == "__main__":

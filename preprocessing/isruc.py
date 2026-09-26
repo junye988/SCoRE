@@ -3,13 +3,13 @@ import os
 from pathlib import Path
 import re
 import numpy as np
-from .clinical import from_cache, from_records, parser_for
-from utils.io import read_json, write_json
+from .recording_import import import_experiment_cache, import_record_partitions, create_preprocessing_parser
+from utils.file_io import read_json, write_json
 
 METADATA_DIR = Path(__file__).parent / "metadata"
 
 
-def record_channel_layout(cache):
+def write_channel_metadata(cache):
     """Record source labels separately from the model's nominal channel slots."""
     inventory = read_json(METADATA_DIR / "isruc_channel_inventory.json")
     manifest = read_json(cache / "manifest.json")
@@ -24,7 +24,7 @@ def record_channel_layout(cache):
     return cache
 
 
-def sequence_order(path):
+def load_sequence_order(path):
     order = read_json(path)
     if set(order) != {str(subject) for subject in range(1, 101)}:
         raise ValueError("ISRUC order manifest must contain subjects 1 through 100")
@@ -41,15 +41,15 @@ def sequence_order(path):
     return order
 
 
-def model_input(values):
+def scale_and_downsample_epoch(values):
     import torch
     import torch.nn.functional as functional
     values = torch.from_numpy(np.array(values, copy=True)).float() / 10.
     return functional.avg_pool1d(values, kernel_size=2, stride=2).numpy()
 
 
-def from_raw(source, output, order, alignment):
-    from .readers.isruc import prepare_recording
+def build_from_raw(source, output, order, alignment):
+    from .raw_readers.isruc import read_epoch_sequences
     inventory = read_json(METADATA_DIR / "isruc_channel_inventory.json")["source_channels_by_subject"]
     partitions = {"train": [], "val": [], "test": []}
     next_sequence = 0
@@ -68,17 +68,17 @@ def from_raw(source, output, order, alignment):
         subject, sequence, epoch = key
         if cache.get("subject") != subject:
             cache.clear()
-            sequences, labels = prepare_recording(source, subject, expected_channels=inventory[str(subject)])
+            sequences, labels = read_epoch_sequences(source, subject, expected_channels=inventory[str(subject)])
             if len(sequences) != len(order[str(subject)]):
                 raise ValueError(f"ISRUC subject {subject} differs from the declared sequence inventory")
             cache.update(subject=subject, x=sequences, y=labels)
             print(f"ISRUC subject {subject}: {len(sequences) * 20} epochs", flush=True)
-        return model_input(cache["x"][sequence, epoch]), int(cache["y"][sequence, epoch]), subject
+        return scale_and_downsample_epoch(cache["x"][sequence, epoch]), int(cache["y"][sequence, epoch]), subject
 
-    return from_records("isruc", partitions, output, load, alignment=alignment)
+    return import_record_partitions("isruc", partitions, output, load, alignment=alignment)
 
 
-def from_sequences(source, output, order, alignment):
+def import_epoch_sequences(source, output, order, alignment):
     partitions = {"train": [], "val": [], "test": []}
     for subject in range(1, 101):
         split = "train" if subject <= 80 else "val" if subject <= 90 else "test"
@@ -99,24 +99,24 @@ def from_sequences(source, output, order, alignment):
         if cache.get("path") != x_path:
             cache.clear()
             cache.update(path=x_path, x=np.load(x_path, mmap_mode="r"), y=np.load(y_path, mmap_mode="r"))
-        return model_input(cache["x"][index]), int(cache["y"][index]), subject
-    return from_records("isruc", partitions, output, load, alignment=alignment)
+        return scale_and_downsample_epoch(cache["x"][index]), int(cache["y"][index]), subject
+    return import_record_partitions("isruc", partitions, output, load, alignment=alignment)
 
 
 def main(argv=None):
-    parser = parser_for("isruc", __doc__, source_formats=("raw", "released", "experiment-cache"))
+    parser = create_preprocessing_parser("isruc", __doc__, source_formats=("raw", "released", "experiment-cache"))
     parser.add_argument("--order-manifest", type=Path, default=METADATA_DIR / "isruc_sequence_order.json",
                         help="JSON mapping subject IDs to the ordered sequence filenames")
     args = parser.parse_args(argv)
     if args.source_format == "experiment-cache":
-        return record_channel_layout(from_cache("isruc", args.source, args.output,
+        return write_channel_metadata(import_experiment_cache("isruc", args.source, args.output,
                                                alignment=args.alignment, ea_source=args.ea_source))
     if args.ea_source is not None:
         raise ValueError("--ea-source is used with --source-format experiment-cache")
-    order = sequence_order(args.order_manifest)
+    order = load_sequence_order(args.order_manifest)
     if args.source_format == "raw":
-        return record_channel_layout(from_raw(args.source, args.output, order, args.alignment))
-    return record_channel_layout(from_sequences(args.source, args.output, order, args.alignment))
+        return write_channel_metadata(build_from_raw(args.source, args.output, order, args.alignment))
+    return write_channel_metadata(import_epoch_sequences(args.source, args.output, order, args.alignment))
 
 
 if __name__ == "__main__":

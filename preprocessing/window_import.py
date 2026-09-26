@@ -1,12 +1,12 @@
-"""Convert anonymous HandMI and SSVEP-EEG windows to split-level arrays."""
+"""Convert HandMI and SSVEP-EEG window archives into dataset partitions."""
 from pathlib import Path
 import numpy as np
 
-from utils.io import sha256_file
-from .cache import CacheWriter, SPLITS
+from utils.file_io import sha256_file
+from .dataset_cache import DatasetCacheWriter, SPLITS
 
 
-def convert_windows(source, output, dataset):
+def import_window_archive(source, output, dataset):
     source = Path(source)
     if source.is_dir():
         candidates = ("mi_windows.npz", "windows.npz") if dataset == "HandMI" else ("ssvep_windows.npz", "fiveclass_windows.npz")
@@ -22,7 +22,7 @@ def convert_windows(source, output, dataset):
     if x.dtype != np.float32 or x.shape[1:] != (32, 400):
         raise ValueError("Expected float32 [N,32,400] windows")
     names = ["left hand", "right hand"] if dataset == "HandMI" else ["5 Hz", "7.5 Hz", "12 Hz", "15 Hz", "rest"]
-    writer = CacheWriter(output, dataset, channels, 200, names, samples_aligned=True, permutation=permutation,
+    writer = DatasetCacheWriter(output, dataset, channels, 200, names, samples_aligned=True, permutation=permutation,
                          preprocessing={"alignment_unit": "subject", "ridge_relative": 1e-4, "eigenvalue_floor_relative": 1e-6,
                                         "alignment_fit": "complete imagery trials" if dataset == "HandMI" else "disjoint stimulation/rest intervals",
                                         "window_seconds": 2, "bandpass_hz": [4, 40] if dataset == "HandMI" else [3, 45]})

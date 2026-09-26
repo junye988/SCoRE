@@ -3,12 +3,12 @@ import pickle
 import re
 from pathlib import Path
 import numpy as np
-from utils.io import read_json
-from .clinical import DATASETS, from_cache, from_records, parser_for
+from utils.file_io import read_json
+from .recording_import import DATASETS, import_experiment_cache, import_record_partitions, create_preprocessing_parser
 
 
-def from_raw(source, output, *, alignment):
-    from .readers.hmc import read_recording
+def build_from_raw(source, output, *, alignment):
+    from .raw_readers.hmc import read_labeled_epochs
 
     source = Path(source)
     if (source / "recordings").is_dir():
@@ -43,24 +43,24 @@ def from_raw(source, output, *, alignment):
         recording, index = key
         if recording != cached_recording:
             cached_epochs, cached_labels = None, None
-            cached_epochs, cached_labels = read_recording(source / f"{recording}.edf")
+            cached_epochs, cached_labels = read_labeled_epochs(source / f"{recording}.edf")
             if len(cached_labels) != expected_counts[recording]:
                 raise ValueError(f"Unexpected number of labeled epochs in {recording}")
             cached_recording = recording
             print(f"HMC {recording}: {len(cached_labels)} epochs", flush=True)
         return cached_epochs[index], int(cached_labels[index]), recording
 
-    return from_records("hmc", partitions, output, load, alignment=alignment)
+    return import_record_partitions("hmc", partitions, output, load, alignment=alignment)
 
 
 def main(argv=None):
-    parser = parser_for("hmc", __doc__, source_formats=("raw", "released", "experiment-cache"))
+    parser = create_preprocessing_parser("hmc", __doc__, source_formats=("raw", "released", "experiment-cache"))
     parser.set_defaults(source_format="raw")
     args = parser.parse_args(argv)
     if args.source_format == "raw":
-        return from_raw(args.source, args.output, alignment=args.alignment)
+        return build_from_raw(args.source, args.output, alignment=args.alignment)
     if args.source_format == "experiment-cache":
-        return from_cache("hmc", args.source, args.output, alignment=args.alignment, ea_source=args.ea_source)
+        return import_experiment_cache("hmc", args.source, args.output, alignment=args.alignment, ea_source=args.ea_source)
     partitions = {split: sorted((args.source / directory).glob("*.pkl")) for split, directory in (("train", "train"), ("val", "eval"), ("test", "test"))}
     if any(not values for values in partitions.values()):
         raise ValueError("Expected train/eval/test folders containing preprocessed pickle epochs")
@@ -76,7 +76,7 @@ def main(argv=None):
         label = np.asarray(data["y"]).reshape(-1)[0]
         return np.asarray(data["X"], dtype=np.float32), int(label), match[1]
 
-    return from_records("hmc", partitions, args.output, load, alignment=args.alignment)
+    return import_record_partitions("hmc", partitions, args.output, load, alignment=args.alignment)
 
 
 if __name__ == "__main__":

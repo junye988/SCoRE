@@ -97,7 +97,7 @@ def _extract_archive(archive, destination):
                     shutil.copyfileobj(source, output, length=1 << 20)
 
 
-def install_archive(source, destination, validate):
+def download_and_extract_archive(source, destination, validate):
     """Install a verified ZIP whose root passes ``validate(path)``.
 
     The callback returns ``None`` for valid contents or an explanatory string.

@@ -8,18 +8,18 @@ import numpy as np
 import torch
 
 from model import EnsembleConfig, SCoRE, WarmupModel, aggregate_logits
-from utils.checkpoints import checkpoint_state
-from utils.config import format_yaml, save_yaml
-from utils.io import write_json, sha256_file
-from utils.metrics import classification_metrics
-from utils.reproducibility import seed_all
-from .config import load_config, member_config
-from .data import EEGDataset, make_loader
-from .evaluation import predict
-from .training import fit_stage
+from utils.checkpoints import load_checkpoint_state
+from utils.yaml_config import format_yaml, save_yaml
+from utils.file_io import write_json, sha256_file
+from utils.classification_metrics import compute_classification_metrics
+from utils.random_seed import set_random_seed
+from .experiment_config import load_experiment_config, build_member_config
+from .data_loader import CachedEEGDataset, build_dataloader
+from .prediction import predict_dataset
+from .training import train_stage
 
 
-def validate_inputs(config, datasets):
+def validate_dataset_inputs(config, datasets):
     """Check the prepared montage and dimensions against the experiment."""
     model = config["model"]
     inputs = config.get("input", {})
@@ -51,13 +51,13 @@ def validate_inputs(config, datasets):
 def train_member(model_config, member, settings, datasets, output, device):
     seed = int(member["seed"])
     deterministic = bool(settings.get("deterministic", True))
-    seed_all(seed, deterministic)
+    set_random_seed(seed, deterministic)
     warmup = WarmupModel(model_config).to(device)
     warm_seed = seed + int(settings.get("warmup_loader_seed_offset", 20000))
-    train_loader = make_loader(datasets["train"], settings, warm_seed, training=True)
-    val_loader = make_loader(datasets["val"], settings, seed + 10000)
-    warmup_result = fit_stage(warmup, train_loader, val_loader, settings, output, device, warmup=True)
-    _, differences = predict(warmup, make_loader(datasets["train"], settings, seed + 30000),
+    train_loader = build_dataloader(datasets["train"], settings, warm_seed, training=True)
+    val_loader = build_dataloader(datasets["val"], settings, seed + 10000)
+    warmup_result = train_stage(warmup, train_loader, val_loader, settings, output, device, warmup=True)
+    _, differences = predict_dataset(warmup, build_dataloader(datasets["train"], settings, seed + 30000),
                              device, amp=bool(settings.get("pca_amp", settings.get("amp", False))),
                              diagnostics=True)
     offset = int(settings.get("joint_seed_offset", 730019))
@@ -65,20 +65,20 @@ def train_member(model_config, member, settings, datasets, output, device):
     if reset not in ("before_model", "after_model"):
         raise ValueError("joint_seed_reset must be before_model or after_model")
     build_seed = seed + (offset if reset == "before_model" else int(settings.get("joint_model_seed_offset", 0)))
-    seed_all(build_seed, deterministic)
+    set_random_seed(build_seed, deterministic)
     model = SCoRE(model_config).to(device)
     model.initialize_from_warmup(warmup, torch.from_numpy(differences))
     del warmup, differences, train_loader
     if reset == "after_model":
-        seed_all(seed + offset, deterministic)
-    train_loader = make_loader(datasets["train"], settings, seed, training=True)
-    joint_result = fit_stage(model, train_loader, val_loader, settings, output, device, warmup=False)
+        set_random_seed(seed + offset, deterministic)
+    train_loader = build_dataloader(datasets["train"], settings, seed, training=True)
+    joint_result = train_stage(model, train_loader, val_loader, settings, output, device, warmup=False)
     write_json(output / "training.json", dict(seed=seed, warmup=warmup_result, joint=joint_result))
     return model, output / "joint_best.pt"
 
 
-def run(args):
-    config = load_config(args)
+def run_experiment(args):
+    config = load_experiment_config(args)
     if args.show_config:
         print(format_yaml(config), end="")
         return config
@@ -107,18 +107,18 @@ def run(args):
     if args.mode == "train" and checkpoints is not None:
         raise ValueError("Use --mode evaluate with --checkpoints")
     splits = ("train", "val", "test") if args.mode == "train" else ("test",)
-    datasets = {split: EEGDataset(args.data_dir, split) for split in splits}
-    validate_inputs(config, datasets)
+    datasets = {split: CachedEEGDataset(args.data_dir, split) for split in splits}
+    validate_dataset_inputs(config, datasets)
     manifest = datasets["test"].manifest
     sample_shape = list(datasets["test"].samples.shape[1:])
     save_yaml(output / "config.yaml", config)
-    test_loader = make_loader(datasets["test"], settings, 0)
+    test_loader = build_dataloader(datasets["test"], settings, 0)
     member_outputs = []
     member_results = []
     started = time.perf_counter()
     test_labels = None
     for index, member in enumerate(members):
-        model_config = member_config(config, member)
+        model_config = build_member_config(config, member)
         member_name = member.get("name", f"member_{index + 1:02d}")
         if Path(member_name).name != member_name:
             raise ValueError("Member names must be single directory names")
@@ -130,13 +130,13 @@ def run(args):
         else:
             path = checkpoints[index]
             model = SCoRE(model_config).to(device)
-            model.load_state_dict(checkpoint_state(path), strict=True)
-        labels, logits = predict(model, test_loader, device, amp=bool(settings.get("amp", False)))
+            model.load_state_dict(load_checkpoint_state(path), strict=True)
+        labels, logits = predict_dataset(model, test_loader, device, amp=bool(settings.get("amp", False)))
         if test_labels is not None and not np.array_equal(labels, test_labels):
             raise ValueError("Ensemble members evaluated different sample orders")
         test_labels = labels
         member_outputs.append(logits)
-        metrics = classification_metrics(labels, logits)
+        metrics = compute_classification_metrics(labels, logits)
         member_results.append(dict(name=member_name, seed=int(member["seed"]),
                                    checkpoint_sha256=sha256_file(path), metrics=metrics))
         del model
@@ -144,7 +144,7 @@ def run(args):
             torch.cuda.empty_cache()
     stacked = np.stack(member_outputs)
     combined = aggregate_logits(torch.from_numpy(stacked), ensemble).cpu().numpy()
-    metrics = classification_metrics(test_labels, combined)
+    metrics = compute_classification_metrics(test_labels, combined)
     np.savez_compressed(output / "test_predictions.npz", labels=test_labels, logits=combined,
                         member_logits=stacked)
     result = dict(dataset=args.dataset, mode=args.mode, ensemble=ensemble_values,

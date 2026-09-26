@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 
-def seed_all(seed, deterministic=True):
+def set_random_seed(seed, deterministic=True):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -16,7 +16,7 @@ def seed_all(seed, deterministic=True):
     torch.backends.cudnn.benchmark = not deterministic
 
 
-def worker_seed(_):
+def seed_dataloader_worker(_):
     seed = torch.initial_seed() % 2**32
     random.seed(seed)
     np.random.seed(seed)

@@ -32,7 +32,7 @@ import lmdb
 import mne
 
 
-def prepare(root, processed):
+def build_reve_lmdb(root, processed):
     """Create REVE-format windows from the complete PhysioNet EDF release."""
     args = SimpleNamespace(root=str(root), processed=str(processed), type="reve")
     tasks = ["04", "06", "08", "10", "12", "14"]  # select the data for motor imagery

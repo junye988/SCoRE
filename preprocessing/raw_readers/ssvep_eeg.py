@@ -19,7 +19,7 @@ import numpy as np
 import scipy
 from scipy.signal import butter, resample_poly, sosfiltfilt
 
-from utils.io import read_json, sha256_file
+from utils.file_io import read_json, sha256_file
 
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent
@@ -301,16 +301,16 @@ def _validate_signal(signal_uV, channel_names, fs):
     return signal, names
 
 
-def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
+def _contiguous_true_runs(mask: np.ndarray) -> list[tuple[int, int]]:
     """Return half-open [start,end) intervals for a one-dimensional boolean mask."""
     edges = np.diff(np.r_[False, np.asarray(mask, dtype=bool), False].astype(np.int8))
     return list(zip(np.flatnonzero(edges == 1).tolist(), np.flatnonzero(edges == -1).tolist()))
 
 
-def _intervals(mask: np.ndarray, fs: float) -> list[dict]:
+def _mask_interval_records(mask: np.ndarray, fs: float) -> list[dict]:
     return [{"start_sample": start, "end_sample_exclusive": end,
              "start_seconds": start / fs, "end_seconds_exclusive": end / fs}
-            for start, end in _runs(mask)]
+            for start, end in _contiguous_true_runs(mask)]
 
 
 def detect_bad_samples(signal_uV, fs=500, *, flat_min_seconds=.5,
@@ -339,7 +339,7 @@ def detect_bad_samples(signal_uV, fs=500, *, flat_min_seconds=.5,
                 continue
             constant_edges = (finite[channel, :-1] & finite[channel, 1:]
                               & (np.abs(np.diff(x[channel].astype(np.float64))) <= flat_tolerance_uV))
-            for start, end in _runs(constant_edges):
+            for start, end in _contiguous_true_runs(constant_edges):
                 if end - start + 1 >= minimum_samples:
                     flat[channel, start:end + 1] = True
     reasons = {"nonfinite": nonfinite, "known_adc_rail": rails, "flatline": flat}
@@ -453,10 +453,10 @@ def repair_continuous(signal_uV, channel_names, fs=500, *, min_donors=4,
                          "dc_baseline_uV": float(baselines[i]), "baseline_good_sample_count": int(baseline_counts[i]),
                          "baseline_source": "median detected-good samples" if baseline_counts[i] else "zero; no valid target baseline",
                          "reason_samples": {key: int(value[i].sum()) for key, value in reasons.items()},
-                         "reason_intervals": {key: _intervals(value[i], fs) for key, value in reasons.items()},
-                         "bad_intervals": _intervals(bad_mask[i], fs),
-                         "repaired_intervals": _intervals(repaired_mask[i], fs),
-                         "unrepaired_intervals": _intervals(unresolved[i], fs)})
+                         "reason_intervals": {key: _mask_interval_records(value[i], fs) for key, value in reasons.items()},
+                         "bad_intervals": _mask_interval_records(bad_mask[i], fs),
+                         "repaired_intervals": _mask_interval_records(repaired_mask[i], fs),
+                         "unrepaired_intervals": _mask_interval_records(unresolved[i], fs)})
     bad_sample_counts = bad_mask.sum(axis=0)
     audit = {"method": "MNE public Raw.interpolate_bads(method={'eeg':'spline'}) spatial interpolation",
              "reference": "https://mne.tools/stable/auto_examples/preprocessing/interpolate_bad_channels.html",
@@ -656,7 +656,7 @@ def _clock_report(sync: dict, csv_times: np.ndarray, grouped: list[dict]) -> dic
     return report
 
 
-def build_cache(data_dir: Path, output: Path, overwrite: bool = False) -> dict:
+def build_window_archive(data_dir: Path, output: Path, overwrite: bool = False) -> dict:
     data_dir, output = Path(data_dir), Path(output)
     if not overwrite and any((output / name).exists() for name in ("ssvep_windows.npz", "metadata.json")):
         raise FileExistsError("Five-class cache exists; explicitly pass --overwrite to rebuild")

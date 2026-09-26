@@ -68,15 +68,29 @@ Source layouts and preparation commands are documented in the [preprocessing gui
 ## Repository layout
 
 ```text
-model/                     Model architecture, configuration, and initialization
-preprocessing/             Raw readers, signal preparation, cache schema, and acquisition
-utils/                     Shared I/O, YAML, downloads, seeds, metrics, and checkpoints
-experiments/               CLI, runtime data loaders, training, and evaluation
-configs/experiments/       Nine complete YAML experiment configurations
-configs/data_sources.yaml  Dataset download locations and checksums
-docs/usage.md              Experiment and model interface reference
-tests/                     Verification suite
-demo.py                    BCI-IV-2a acquisition and experiment entry point
+demo.py                         Download data and run the BCI-IV-2a demo
+configs/
+  experiments/<dataset>.yaml    Complete experiment configurations
+  data_sources.yaml             Download URLs and checksums
+model/                          Model architecture, configuration, and initialization
+preprocessing/
+  <dataset>.py                  Dataset preparation commands
+  raw_readers/                  Raw recording readers
+  dataset_cache.py              Prepared-cache format and I/O
+  dataset_download.py           Prepared-data checks and download
+  recording_import.py           Recording and cached-array imports
+  window_import.py              Window-archive imports
+experiments/
+  run.py                        Training and evaluation CLI
+  experiment.py                 Experiment workflow
+  data_loader.py                Runtime datasets and data loaders
+  training.py                   Optimization and checkpoint selection
+  prediction.py                 Batched prediction
+utils/                          Shared file I/O, YAML, downloads, seeds, and metrics
+docs/usage.md                   Command and model interface reference
+tests/                          Verification suite
+data/<dataset>/                 Prepared EEG caches (generated)
+runs/<dataset>/                 Checkpoints and results (generated)
 ```
 
 ## License

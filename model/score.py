@@ -12,7 +12,7 @@ from .initialization import (
 )
 
 
-def _backbone(config):
+def _build_backbone(config):
     backbone = ShallowLogEnergyBackbone(**config.backbone_kwargs())
     if config.num_classes != backbone.classifier.out_features:
         backbone.classifier = nn.Linear(config.embedding_width, config.num_classes)
@@ -21,7 +21,7 @@ def _backbone(config):
     return backbone
 
 
-def _initial_reflection(config):
+def _build_initial_reflection(config):
     matrix = build_initial_reflection(
         config.mirror_permutation, config.reflection_init,
         config.reflection_init_strength, config.reflection_init_seed,
@@ -29,7 +29,7 @@ def _initial_reflection(config):
     return matrix.to(getattr(torch, config.initial_reflection_precision))
 
 
-def _readout_axis(classifier):
+def _axis_from_classifier(classifier):
     with torch.no_grad():
         row_energy = classifier.weight.detach().float().square().mean(dim=1)
         candidate = row_energy - row_energy.mean()
@@ -49,9 +49,9 @@ class SCoRE(nn.Module):
         self.config = ModelConfig.from_dict(config) if isinstance(config, dict) else config
         config = self.config
         self.num_classes = config.num_classes
-        self.backbone = _backbone(config)
+        self.backbone = _build_backbone(config)
         self.feature_dim = config.embedding_width
-        axis = _readout_axis(self.classifier)
+        axis = _axis_from_classifier(self.classifier)
         if config.num_classes == 2:
             axis = binary_axis()
         elif initial_axis is not None:
@@ -61,7 +61,7 @@ class SCoRE(nn.Module):
         self.register_buffer("reflection_upper_indices", torch.triu_indices(
             config.num_channels, config.num_channels, offset=1,
         ))
-        self.register_buffer("initial_input_reflection", _initial_reflection(config))
+        self.register_buffer("initial_input_reflection", _build_initial_reflection(config))
         self.reflection_raw = nn.Parameter(torch.zeros(self.reflection_upper_indices.shape[1]))
 
     @property
@@ -146,7 +146,7 @@ class SCoRE(nn.Module):
             if differences is None:
                 raise ValueError("Multiclass initialization requires training logit differences")
             axis = spectral_axis_from_odd_logits(
-                differences, fallback_axis=_readout_axis(warmup.classifier),
+                differences, fallback_axis=_axis_from_classifier(warmup.classifier),
             )
         self.axis_raw.copy_(axis.to(self.axis_raw.device))
         return axis
@@ -159,9 +159,9 @@ class PairedDirectWarmupNet(nn.Module):
         super().__init__()
         self.config = ModelConfig.from_dict(config) if isinstance(config, dict) else config
         self.num_classes = self.config.num_classes
-        self.backbone = _backbone(self.config)
+        self.backbone = _build_backbone(self.config)
         self.register_buffer("mirror_permutation", torch.tensor(self.config.mirror_permutation))
-        self.register_buffer("initial_input_reflection", _initial_reflection(self.config),
+        self.register_buffer("initial_input_reflection", _build_initial_reflection(self.config),
                              persistent=False)
 
     @property

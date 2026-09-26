@@ -4,19 +4,19 @@ import re
 from pathlib import Path
 import tempfile
 import numpy as np
-from .clinical import from_cache, from_records, parser_for
-from .cache import SPLITS
+from .recording_import import import_experiment_cache, import_record_partitions, create_preprocessing_parser
+from .dataset_cache import SPLITS
 
 
-def from_raw(source, output, alignment):
+def build_from_raw(source, output, alignment):
     import mne
     import scipy
-    from .readers.mumtaz import prepare_recording, split_filenames
-    from .clinical import make_writer, pairs_for
+    from .raw_readers.mumtaz import read_epoch_windows, split_filenames
+    from .recording_import import create_cache_writer, build_alignment_pairs
     partitions = split_filenames(source)
     if any(not files for files in partitions.values()):
         raise ValueError("Mumtaz raw directory must contain the complete EC/EO recording collection")
-    writer = make_writer("mumtaz", output, alignment)
+    writer = create_cache_writer("mumtaz", output, alignment)
     writer.manifest["preprocessing"].update({"source": "REVE released EDF pipeline", "resample_hz": 200,
                                             "bandpass_hz": [.3, 30], "notch_hz": 50, "window_seconds": 5,
                                             "loader_scale": .01,
@@ -26,7 +26,7 @@ def from_raw(source, output, alignment):
         for split in SPLITS:
             paths, counts = [], []
             for group, filename in enumerate(partitions[split]):
-                samples = prepare_recording(source / filename)
+                samples = read_epoch_windows(source / filename)
                 path = Path(work) / f"{split}-{group}.npy"
                 np.save(path, samples)
                 paths.append(path)
@@ -41,18 +41,18 @@ def from_raw(source, output, alignment):
                 groups[offset:offset + count] = group
                 offset += count
             x.flush()
-            writer.add_split(split, x, labels, groups, pairs_for(x, groups, alignment))
+            writer.add_split(split, x, labels, groups, build_alignment_pairs(x, groups, alignment))
             print(f"Mumtaz {split}: {n} epochs", flush=True)
             del x
     return writer.finish()
 
 
 def main(argv=None):
-    args = parser_for("mumtaz", __doc__, source_formats=("raw", "released", "experiment-cache")).parse_args(argv)
+    args = create_preprocessing_parser("mumtaz", __doc__, source_formats=("raw", "released", "experiment-cache")).parse_args(argv)
     if args.source_format == "raw":
-        return from_raw(args.source, args.output, args.alignment)
+        return build_from_raw(args.source, args.output, args.alignment)
     if args.source_format == "experiment-cache":
-        return from_cache("mumtaz", args.source, args.output, alignment=args.alignment, ea_source=args.ea_source)
+        return import_experiment_cache("mumtaz", args.source, args.output, alignment=args.alignment, ea_source=args.ea_source)
     import lmdb
     db = lmdb.open(str(args.source), readonly=True, lock=False, readahead=False, subdir=args.source.is_dir())
     try:
@@ -67,7 +67,7 @@ def main(argv=None):
                 if sample.shape != (19, 1000):
                     raise ValueError("Expected REVE Mumtaz samples [19,1000]")
                 return np.ascontiguousarray(sample / 100., dtype=np.float32), int(data["label"]), match[1]
-            return from_records("mumtaz", partitions, args.output, load, alignment=args.alignment)
+            return import_record_partitions("mumtaz", partitions, args.output, load, alignment=args.alignment)
     finally:
         db.close()
 

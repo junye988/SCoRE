@@ -15,20 +15,20 @@ from sklearn.metrics import (
 )
 
 
-def probabilities(logits):
+def softmax_probabilities(logits):
     values = np.asarray(logits, dtype=np.float64)
     values = np.exp(values - values.max(axis=1, keepdims=True))
     return values / values.sum(axis=1, keepdims=True)
 
 
-def classification_metrics(labels, scores, *, probability_input=False):
+def compute_classification_metrics(labels, scores, *, probability_input=False):
     labels = np.asarray(labels, dtype=np.int64)
     scores = np.asarray(scores)
     if scores.ndim != 2 or len(labels) != len(scores) or not len(labels):
         raise ValueError("Expected nonempty labels [N] and scores [N, K]")
     if not np.isfinite(scores).all():
         raise ValueError("Predictions contain nonfinite values")
-    prob = scores.astype(np.float64) if probability_input else probabilities(scores)
+    prob = scores.astype(np.float64) if probability_input else softmax_probabilities(scores)
     if probability_input and (np.any(prob < 0) or not np.allclose(prob.sum(1), 1, atol=1e-5)):
         raise ValueError("Probability rows must be nonnegative and sum to one")
     classes = np.arange(scores.shape[1])

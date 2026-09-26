@@ -14,7 +14,7 @@ import numpy as np
 LABEL_MAP = {"0": 0, "1": 1, "2": 2, "3": 3, "5": 4}
 
 
-def prepare_recording(source, subject, expected_channels=None):
+def read_epoch_sequences(source, subject, expected_channels=None):
     """Return the six protocol-selected channels and first-scorer labels at 200 Hz."""
     import mne
     source = Path(source)

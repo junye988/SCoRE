@@ -9,9 +9,9 @@ import unittest
 
 import yaml
 
-from experiments.config import CONFIG_ROOT, DATASETS, load_config, member_config
+from experiments.experiment_config import CONFIG_ROOT, DATASETS, load_experiment_config, build_member_config
 from model import EnsembleConfig, ModelConfig
-from utils.config import format_yaml, load_yaml, save_yaml
+from utils.yaml_config import format_yaml, load_yaml, save_yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,7 +69,7 @@ class ProjectBoundaryTests(unittest.TestCase):
             with self.subTest(dataset=dataset):
                 args = SimpleNamespace(dataset=dataset, config=None, num_workers=None,
                                        eval_batch_size=None)
-                config = load_config(args)
+                config = load_experiment_config(args)
                 original = deepcopy(config)
                 self.assertEqual(config["dataset"], dataset)
                 self.assertEqual(set(config), {"dataset", "model", "training", "input"})
@@ -94,7 +94,7 @@ class ProjectBoundaryTests(unittest.TestCase):
                 for member in model.ensemble.members:
                     self.assertIsInstance(member["name"], str)
                     self.assertIs(type(member["seed"]), int)
-                    resolved = member_config(config, member)
+                    resolved = build_member_config(config, member)
                     self.assertIsInstance(resolved, ModelConfig)
                     self.assertFalse(resolved.ensemble.enabled)
                     self.assertEqual(resolved.ensemble.size, 1)
@@ -107,7 +107,7 @@ class ProjectBoundaryTests(unittest.TestCase):
                                eval_batch_size=7)
         path = CONFIG_ROOT / "bci_iv_2a.yaml"
         original = load_yaml(path)
-        resolved = load_config(args)
+        resolved = load_experiment_config(args)
         self.assertEqual(resolved["training"]["num_workers"], 2)
         self.assertEqual(resolved["training"]["eval_batch_size"], 7)
         self.assertEqual(resolved["model"], original["model"])
@@ -115,7 +115,7 @@ class ProjectBoundaryTests(unittest.TestCase):
         args.config = path
         args.dataset = "hmc"
         with self.assertRaisesRegex(ValueError, "must agree"):
-            load_config(args)
+            load_experiment_config(args)
 
 
 class YamlConfigurationTests(unittest.TestCase):

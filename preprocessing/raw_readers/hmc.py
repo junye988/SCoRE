@@ -17,7 +17,7 @@ LABELS = {
 }
 
 
-def read_recording(edf_path):
+def read_labeled_epochs(edf_path):
     """Return labeled 30-second epochs, preserving annotation order."""
     edf_path = Path(edf_path)
     annotation_path = edf_path.with_name(edf_path.stem + "_sleepscoring.txt")

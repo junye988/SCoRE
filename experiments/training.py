@@ -9,14 +9,14 @@ import numpy as np
 import torch
 from torch import nn
 
-from utils.io import write_json
-from utils.metrics import classification_metrics
-from .augmentation import aligned_mixup, augment
-from .batches import batch_to_device, forward_batch
-from .evaluation import predict
+from utils.file_io import write_json
+from utils.classification_metrics import compute_classification_metrics
+from .data_augmentation import aligned_mixup, augment_batch
+from .batch_processing import batch_to_device, forward_batch
+from .prediction import predict_dataset
 
 
-def optimizer_for(model, settings, *, warmup):
+def build_optimizer(model, settings, *, warmup):
     backbone_lr = float(settings.get("warmup_backbone_lr", settings.get("bootstrap_backbone_lr",
                         settings.get("backbone_lr", 3e-4))) if warmup else settings.get("backbone_lr", 3e-4))
     head_lr = float(settings.get("warmup_head_lr", settings.get("bootstrap_head_lr",
@@ -58,7 +58,7 @@ def learning_rate_factor(index, maximum, settings, *, warmup, steps):
     return floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * progress))
 
 
-def fit_stage(model, train_loader, val_loader, settings, directory, device, *, warmup):
+def train_stage(model, train_loader, val_loader, settings, directory, device, *, warmup):
     stage = "warmup" if warmup else "joint"
     steps = settings.get("mode", "epochs") == "steps"
     if steps:
@@ -78,7 +78,7 @@ def fit_stage(model, train_loader, val_loader, settings, directory, device, *, w
         patience = 0
     if maximum < 1 or interval < 1:
         raise ValueError("Training duration and validation interval must be positive")
-    optimizer = optimizer_for(model, settings, warmup=warmup)
+    optimizer = build_optimizer(model, settings, warmup=warmup)
     labels = np.asarray(train_loader.dataset.labels, dtype=np.int64)
     power = float(settings.get("classweight_power", 0) or 0)
     counts = np.bincount(labels, minlength=model.config.num_classes)
@@ -107,8 +107,8 @@ def fit_stage(model, train_loader, val_loader, settings, directory, device, *, w
 
     def validate():
         nonlocal best_key, best_state, best_position, stale
-        y, z = predict(model, val_loader, device, amp=use_amp)
-        metrics = classification_metrics(y, z)
+        y, z = predict_dataset(model, val_loader, device, amp=use_amp)
+        metrics = compute_classification_metrics(y, z)
         key = (metrics["balanced_accuracy"],)
         if not warmup and settings.get("val_macro_f1_tiebreak", False):
             key += (metrics["macro_f1"],)
@@ -146,7 +146,7 @@ def fit_stage(model, train_loader, val_loader, settings, directory, device, *, w
             for group in optimizer.param_groups:
                 group["lr"] = group["base_lr"] * factor
             x, y, pair = batch_to_device(batch, device, model.config.input_precision)
-            x = augment(x, pair, settings)
+            x = augment_batch(x, pair, settings)
             x, ya, yb, lam = aligned_mixup(x, y, pair, float(settings.get("mixup", settings.get("mixup_alpha", 0))))
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device.type, dtype=torch.float16, enabled=use_amp):

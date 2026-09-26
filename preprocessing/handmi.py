@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 import tempfile
-from .self_collected import convert_windows
+from .window_import import import_window_archive
 
 
 def main(argv=None):
@@ -12,12 +12,12 @@ def main(argv=None):
     parser.add_argument("--source-format", choices=("raw", "windows"), default="raw")
     args = parser.parse_args(argv)
     if args.source_format == "windows":
-        return convert_windows(args.source, args.output, "HandMI")
-    from .readers.handmi import build_cache
+        return import_window_archive(args.source, args.output, "HandMI")
+    from .raw_readers.handmi import build_window_archive
     with tempfile.TemporaryDirectory(prefix="score-handmi-") as work:
         cache = Path(work) / "windows"
-        build_cache(args.source, cache)
-        return convert_windows(cache, args.output, "HandMI")
+        build_window_archive(args.source, cache)
+        return import_window_archive(cache, args.output, "HandMI")
 
 
 if __name__ == "__main__":
