@@ -154,10 +154,6 @@ def run(args):
                   dataset_manifest_sha256=sha256_file(args.data_dir / "manifest.json"),
                   elapsed_seconds=time.perf_counter() - started,
                   versions={"pytorch": torch.__version__, "numpy": np.__version__})
-    reference = config.get("evaluation", {}).get("target_balanced_accuracy_percent")
-    if reference is not None:
-        result["reference_balanced_accuracy_percent"] = float(reference)
-        result["difference_percentage_points"] = 100 * metrics["balanced_accuracy"] - float(reference)
     write_json(output / "results.json", result)
     print(json.dumps({"dataset": args.dataset, "balanced_accuracy_percent": 100 * metrics["balanced_accuracy"],
                       "results": str(output / "results.json")}), flush=True)

@@ -82,5 +82,3 @@ input:
   - O2
   - C3
   require_identity_alignment: true
-evaluation:
-  target_balanced_accuracy_percent: 79.79

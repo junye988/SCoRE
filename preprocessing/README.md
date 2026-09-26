@@ -149,7 +149,9 @@ For `--source-format subject-epochs`, provide `subjects/sub-001.npz` through `su
 
 ## Partitions and alignment
 
-BCI-IV-2a uses subjects 1–5 for training, 6–7 for validation and 8–9 for testing, including both sessions. PhysioNet-MI uses subjects 1–70, 71–89 and 90–109. ISRUC uses subjects 1–80, 81–90 and 91–100. HandMI and SSVEP-EEG use S001–S008, S009–S010 and S011–S012. AesthEEG uses the fixed 40/10/10 subject partition encoded in `aestheeg.py`. HMC uses the bundled recording partition. MAT and Mumtaz retain their specified recording partitions and sample order.
+BCI-IV-2a uses subjects 1–5 for training, 6–7 for validation and 8–9 for testing, including both sessions. PhysioNet-MI uses subjects 1–70, 71–89 and 90–109. ISRUC uses subjects 1–80, 81–90 and 91–100. HandMI and SSVEP-EEG use S001–S008, S009–S010 and S011–S012. AesthEEG uses the fixed 40/10/10 subject partition encoded in `aestheeg.py`. HMC uses the bundled recording partition.
+
+MAT's raw reader uses subject IDs 0–27, 28–31 and 32–35 for training, validation and testing. Mumtaz's raw reader excludes `TASK` recordings and sorts healthy and MDD EDF filenames separately. Training uses the first 40 healthy and 42 MDD recordings, validation the next 8 and 10, and testing the remainder. Released LMDB imports preserve the supplied partitions and sample order.
 
 Alignment uses each group's complete unlabeled input within its partition. The resulting operators remain fixed. BCI-IV-2a, PhysioNet-MI, ISRUC, Mumtaz and AesthEEG use the mean epoch Gram matrix with a relative eigenvalue floor of 10⁻¹². HandMI estimates covariance on complete imagery trials before overlapping windows. SSVEP-EEG estimates covariance on disjoint stimulation/rest intervals before window extraction. Both use relative ridge 10⁻⁴ and eigenvalue floor 10⁻⁶. HMC and MAT use identity operators in their released model configurations. `--alignment ea` enables EA for these clinical input formats.
 
@@ -173,4 +175,4 @@ Each cache contains `manifest.json` and four arrays per split:
 - `{split}_group_indices.npy`: split-local alignment group indices with shape `[N]`.
 - `{split}_alignment_pairs.npy`: frozen `A` and `inverse(A)` with shape `[G, 2, C, C]`.
 
-The manifest records channels, class indices, sample rate, dimensions, counts, dtypes and `samples_aligned`. The loader applies `A` exactly once when this flag is false. Saved aligned samples retain their original float32 or float64 precision. Model-side referencing and normalization are controlled by the model configuration.
+The manifest records channels, class indices, sample rate, dimensions, counts, dtypes and `samples_aligned`. The loader applies `A` exactly once when this flag is false. Saved aligned samples retain their original float32 or float64 precision. The model backbone applies common-average referencing and RMS normalization before convolution.

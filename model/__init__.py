@@ -1,4 +1,4 @@
-"""SCoRE model, spectral initialization, and configured ensembles."""
+"""SCoRE model and initialization interfaces."""
 
 from .config import EnsembleConfig, ModelConfig
 from .ensemble import SCoREEnsemble, aggregate_logits

@@ -104,5 +104,3 @@ training:
   pca_amp: false
 input:
   sampling_rate_hz: 200
-evaluation:
-  target_balanced_accuracy_percent: 80.91

@@ -72,7 +72,8 @@ class ProjectBoundaryTests(unittest.TestCase):
                 config = load_config(args)
                 original = deepcopy(config)
                 self.assertEqual(config["dataset"], dataset)
-                for section in ("model", "training", "input", "evaluation"):
+                self.assertEqual(set(config), {"dataset", "model", "training", "input"})
+                for section in ("model", "training", "input"):
                     self.assertIsInstance(config[section], dict)
                 model = ModelConfig.from_dict(config["model"])
                 self.assertIsInstance(model.ensemble, EnsembleConfig)

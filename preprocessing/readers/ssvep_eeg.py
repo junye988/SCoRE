@@ -410,7 +410,7 @@ def repair_continuous(signal_uV, channel_names, fs=500, *, min_donors=4,
     info, origin, radius, geometry_warnings = _template_geometry(names, float(fs))
     patterns, donor_minima = [], np.full(len(names), len(names) + 1, dtype=int)
     warning_messages = set(geometry_warnings)
-    # Group by the instantaneous bad-channel set, not by trial/class or time-window labels.
+    # Group samples by their instantaneous detected bad-channel set.
     packed = np.packbits(bad_mask, axis=0, bitorder="little").T
     unique, inverse = np.unique(packed, axis=0, return_inverse=True)
     for index, packed_pattern in enumerate(unique):
@@ -477,7 +477,7 @@ def repair_continuous(signal_uV, channel_names, fs=500, *, min_donors=4,
              "unrepaired_samples": int(unresolved.sum()), "repair_fraction": float(repaired_mask.mean()),
              "observed_good_samples_unchanged": True, "input_modified": False,
              "uses_class_labels": False, "mixes_participants": False,
-             "limitation": "Spatial estimates cannot recover unobserved true brain activity; broad regions with many missing channels have limited spatial support.",
+             "limitation": "Interpolated samples are spatial estimates with limited support when many neighboring channels are missing",
              "warnings": sorted(warning_messages), "interpolation_patterns": patterns, "channels": channels}
     return repaired, bad_mask, audit
 
@@ -745,10 +745,10 @@ def build_cache(data_dir: Path, output: Path, overwrite: bool = False) -> dict:
             "processing_order": ["source EEG defect detection and same-time spatial repair", "continuous 3-45 Hz bandpass",
                                  "500 to 200 Hz resampling", "actual-boundary segmentation", "session EA reference from unique eligible segment samples", "two-second windows and application of EA"],
             "repair": "repair_continuous: non-finite samples, >=0.5 s flatlines and known ADC rails; standard_1020 template spherical splines with >=4 original good simultaneous donors; good samples unchanged before filtering",
-            "repair_scope": "Per-session label-free spatial estimation, including good-sample median DC baselines; not recovery of true missing activity",
+            "repair_scope": "Per-session label-free spatial interpolation using detected-good sample medians for DC baselines",
             "filter": "Continuous Butterworth bandpass 3-45 Hz, scipy butter N=4, zero-phase sosfiltfilt",
             "resampling": "500 to 200 Hz with scipy resample_poly up=2, down=5, default anti-alias FIR; no time warping",
-            "clock": "CSV relative event-log times mapped to EDF-relative seconds by the separately verified timing-only affine event clock and unique inter-block pause",
+            "clock": "Affine CSV-to-EDF clock fit using event times and the inter-block pause",
             "active": "CSV cue onset through CSV rest onset (cue plus gaze), assigned CSV target frequency",
             "rest": "CSV baseline through cue and CSV rest onset through trial end; same-block neighboring rest/baseline intervals joined only for a nonnegative gap <=0.100 s",
             "rest_join_gap_policy": "The short logged trial-end-to-next-baseline gap is assigned to the merged surrounding rest; every such gap is reported; block pauses never included",
@@ -761,7 +761,7 @@ def build_cache(data_dir: Path, output: Path, overwrite: bool = False) -> dict:
             "ea_scope": "Whole-session unlabeled transductive preprocessing, including participants later held out; all eligible active/rest samples, with no label-dependent weighting or class balancing",
             "raw_windows_units": "Microvolts after repair/filter/resampling, before EA",
             "aligned_windows_units": "Dimensionless; aligned_windows=A @ raw_windows",
-            "trial_id": "Globally unique continuous segment ID, subject_index*1000+one-based chronological segment ordinal; NOT the original trial ID",
+            "trial_id": "Continuous segment identifier: subject_index*1000 + one-based chronological segment ordinal; parent_trial_id records the CSV trial reference",
             "parent_trial_id": "subject_index*1000+CSV trial_id; merged rest uses preceding trial here and both parents in segment metadata",
             "segment_kind": "active, rest_merged, or rest_baseline for included segments; excluded terminal short rest_postgaze is in metadata",
             "window_start_seconds": "Absolute EDF-relative start of a 200-Hz window",

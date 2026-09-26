@@ -111,5 +111,3 @@ input:
   - Fz
   - Cz
   - Pz
-evaluation:
-  target_balanced_accuracy_percent: 97.44

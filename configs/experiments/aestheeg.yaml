@@ -137,5 +137,3 @@ input:
   - O1
   - Oz
   - O2
-evaluation:
-  target_balanced_accuracy_percent: 68.24

@@ -213,5 +213,3 @@ input:
   - Oz
   - O2
   - Iz
-evaluation:
-  target_balanced_accuracy_percent: 63.95

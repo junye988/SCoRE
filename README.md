@@ -45,7 +45,7 @@ python -m experiments.run --dataset handmi \
   --data-dir data/handmi --output-dir runs/handmi --device cuda
 ```
 
-Evaluation loads the configured members' checkpoints from the run directory. Balanced accuracy is the primary metric; detailed results are saved in `results.json`.
+Evaluation loads checkpoints from the run directory. Balanced accuracy is the primary metric; detailed results are saved in `results.json`.
 
 See [usage](docs/usage.md) for custom configurations, checkpoint selection, resource options, and the Python model interface.
 
@@ -66,7 +66,7 @@ Source layouts and preparation commands are documented in the [preprocessing gui
 ## Repository layout
 
 ```text
-model/                     Model architecture, initialization, and ensemble operations
+model/                     Model architecture, configuration, and initialization
 preprocessing/             Raw readers, signal preparation, cache schema, and acquisition
 utils/                     Shared I/O, YAML, downloads, seeds, metrics, and checkpoints
 experiments/               CLI, runtime data loaders, training, and evaluation

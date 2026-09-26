@@ -34,7 +34,7 @@ python demo.py \
   --device cuda
 ```
 
-Use a new output directory for each training run. Training refuses to overwrite an existing member's `joint_best.pt` checkpoint.
+Use a new output directory for each training run. Training refuses to overwrite an existing `joint_best.pt` checkpoint.
 
 ## Experiment entry points
 
@@ -71,26 +71,15 @@ Each supplied experiment YAML is complete and can be copied as the starting poin
 | Section | Contents |
 |---|---|
 | `dataset` | Dataset identifier |
-| `model` | Architecture, input dimensions, reflection settings, and ensemble |
+| `model` | Architecture, input dimensions, reflection settings, and prediction configuration |
 | `training` | Optimization, scheduling, batch sizes, seeds, and checkpoint selection |
 | `input` | Expected sampling rate and channel order, with an identity-alignment requirement where applicable |
-| `evaluation` | Reference balanced accuracy for reporting |
 
-`model.ensemble` defines member seeds and model overrides, aggregation, and any probability weights or temperatures. One training invocation runs the complete configured ensemble. For example, the BCI-IV-2a configuration contains this member specification within `model.ensemble.members`:
-
-```yaml
-members:
-  - name: physical
-    seed: 307
-    model_overrides:
-      reflection_init: physical
-      reflection_init_strength: 0.0
-      reflection_init_seed: 401
-```
-
-Member names determine checkpoint subdirectories. Preserve member order when supplying checkpoints for evaluation. The ensemble `size` must equal the number of members.
+`model.ensemble` defines prediction aggregation, member seeds and model overrides, including probability weights or temperatures where configured.
 
 Input dimensions, class count, sampling rate, channel correspondence, and configured channel order are checked against the prepared dataset before running.
+
+Joint training selects `joint_best.pt` by validation balanced accuracy, with configured macro-F1 and loss tie-breakers. `training.warmup_checkpoint` selects the validation-best or final warm-up state.
 
 ## Execution resources
 
@@ -112,7 +101,7 @@ python -m experiments.run --dataset bci_iv_2a \
   --mode evaluate --device cuda
 ```
 
-To write evaluation outputs to another directory, provide one checkpoint for each configured member, in `model.ensemble.members` order:
+To use explicit checkpoint paths and a separate output directory, supply the checkpoints in the count and order specified by the model configuration:
 
 ```bash
 python -m experiments.run --dataset bci_iv_2a \
@@ -124,25 +113,26 @@ python -m experiments.run --dataset bci_iv_2a \
   --output-dir runs/bci_iv_2a_evaluation --device cuda
 ```
 
-Evaluation requires the prepared test split and the same model and ensemble configuration used during training.
+Evaluation requires the prepared test split and the model configuration used during training.
 
 ## Run outputs
 
-The output directory contains the resolved `config.yaml`, `results.json`, and `test_predictions.npz`. Training adds one subdirectory per ensemble member containing checkpoints and training histories.
+The output directory contains the resolved `config.yaml`, `results.json`, and `test_predictions.npz`. Training also saves checkpoints and training histories in named subdirectories.
 
-`results.json` reports ensemble and member metrics, checkpoint and data-manifest hashes, sample counts, elapsed time, and dependency versions. Metrics include balanced accuracy, Cohen's κ, and weighted F1; binary tasks also report AUROC and area under the precision–recall curve. `test_predictions.npz` contains labels, combined logits, and individual member logits in matching sample order.
+`results.json` reports classification metrics, checkpoint and data-manifest hashes, sample counts, elapsed time, and dependency versions. Metrics include balanced accuracy, Cohen's κ, and weighted F1; binary tasks also report AUROC and area under the precision–recall curve. `test_predictions.npz` stores `labels`, `logits`, and `member_logits` in matching sample order.
 
 ## Python model interface
 
-The following example creates one model from an experiment's base model settings and runs two synthetic trials:
+Create a model and run two synthetic trials:
 
 ```python
 import torch
 from model import ModelConfig, SCoRE
-from utils.config import load_yaml
 
-experiment = load_yaml("configs/experiments/bci_iv_2a.yaml")
-config = ModelConfig.from_dict(experiment["model"])
+config = ModelConfig(
+    num_channels=4, num_samples=256, num_classes=3,
+    mirror_permutation=(1, 0, 3, 2),
+)
 model = SCoRE(config).eval()
 eeg = torch.randn(2, config.num_channels, config.num_samples)
 alignment_pair = torch.eye(config.num_channels).expand(2, 2, -1, -1)
@@ -151,5 +141,3 @@ with torch.no_grad():
 ```
 
 For real inputs, use the prepared EEG and its alignment pairs. `eeg` has shape `[batch, channels, time]`. `alignment_pair` has shape `[batch, 2, channels, channels]`, containing the alignment operator followed by its inverse. Match `ModelConfig` to the dataset's dimensions and channel correspondence, and place the model and inputs on the same device.
-
-Use the experiment runner to apply member overrides and run the configured ensemble. `model/initialization.py` provides the spectral output-direction initializer; `model/ensemble.py` provides `SCoREEnsemble` and `aggregate_logits` for prediction aggregation. The `model` package is independent of dataset acquisition and experiment execution.

@@ -1,4 +1,4 @@
-"""Prediction aggregation for independently trained SCoRE members."""
+"""Configurable prediction aggregation."""
 
 from collections.abc import Sequence
 

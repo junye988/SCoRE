@@ -20,7 +20,7 @@ def parse_args(argv=None, default_dataset="bci_iv_2a"):
     parser.add_argument("--output-dir", type=Path, help="Directory for checkpoints, predictions, and metrics")
     parser.add_argument("--mode", choices=("train", "evaluate"), default="train")
     parser.add_argument("--checkpoints", nargs="+", type=Path,
-                        help="One checkpoint per configured ensemble member, in configuration order")
+                        help="Checkpoint files in model configuration order")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--num-workers", type=int, help="Override data loader worker count")
     parser.add_argument("--cpu-threads", type=int, default=4)
