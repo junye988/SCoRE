@@ -59,7 +59,9 @@ See [usage](docs/usage.md) for custom configurations, checkpoint selection, reso
 | HMC | [HMC Sleep Staging Database](https://physionet.org/content/hmc-sleep-staging/1.1/) |
 | MAT | [EEG During Mental Arithmetic Tasks](https://physionet.org/content/eegmat/1.0.0/) |
 | Mumtaz | [EEG Data New](https://figshare.com/articles/dataset/EEG_Data_New/4244171) |
-| HandMI, SSVEP-EEG, AesthEEG | [Released datasets on Figshare](https://figshare.com/s/07498f285053b3a8229b) |
+| HandMI, SSVEP-EEG, AesthEEG | [Datasets on Figshare](https://figshare.com/s/07498f285053b3a8229b) |
+
+HandMI, SSVEP-EEG, and AesthEEG accompany a manuscript currently under review and should not be redistributed until the manuscript is publicly available.
 
 Source layouts and preparation commands are documented in the [preprocessing guide](preprocessing/README.md). The demo download URL and checksum are configured in [`configs/data_sources.yaml`](configs/data_sources.yaml).
 
