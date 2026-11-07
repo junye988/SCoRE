@@ -8,13 +8,14 @@ PyTorch implementation of SCoRE with reproducible experiments across nine EEG da
 
 Use Python 3.11 or newer and a CUDA-enabled PyTorch build for GPU training.
 
+Extract the accompanying source-code archive, enter its root directory, and run:
+
 ```bash
-git clone https://github.com/junye988/SCoRE.git
-cd SCoRE
 python -m pip install -r requirements.txt
 ```
 
-Alternatively, run `bash install.sh` to create a virtual environment. See [usage](docs/usage.md) for installation options.
+Alternatively, run `bash install.sh` to create a virtual environment.
+See [usage](docs/usage.md) for installation options.
 
 ## Quick start
 
